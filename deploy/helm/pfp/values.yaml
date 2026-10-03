@@ -1,0 +1,11 @@
+image:
+  repository: pfp
+  tag: dev
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+db:
+  password: pfp
+
+host: pfp.localhost

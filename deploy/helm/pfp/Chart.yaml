@@ -1,0 +1,5 @@
+apiVersion: v2
+name: pfp
+description: PFP barbershop network (demo on k3d)
+version: 0.1.0
+appVersion: "0.1.0"
