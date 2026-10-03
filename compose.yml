@@ -15,5 +15,51 @@ services:
     ports:
       - "6380:6379"
 
+  app:
+    build: .
+    environment:
+      PFP_DATABASE_URL: postgresql+asyncpg://pfp:pfp@postgres:5432/pfp
+      PFP_VALKEY_URL: redis://valkey:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - valkey
+    labels:
+      - "com.docker.compose.project=pfp"
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/business.json
+    volumes:
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/ds.yml
+      - ./observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dash.yml
+      - ./observability/grafana-dashboard.json:/etc/grafana/dashboards/business.json
+    ports:
+      - "3000:3000"
+
+  loki:
+    image: grafana/loki:3.3.0
+    volumes:
+      - ./observability/loki.yml:/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.3.0
+    volumes:
+      - ./observability/promtail.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+
+
 volumes:
   pgdata:
