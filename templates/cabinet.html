@@ -3,8 +3,9 @@
 {% block content %}
 <h1>Мои записи</h1>
 <table><tr><th>Когда</th><th>Услуга</th><th>Статус</th><th></th></tr>
+{% set ST = {'pending':'ожидает','done':'выполнен','cancelled':'отменён'} %}
 {% for b, s in rows %}
-<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{{ b.status }}</td>
+<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{{ ST.get(b.status, b.status) }}</td>
 <td>{% if b.status == 'pending' %}<form method="post" action="/cancel/{{ b.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Отменить</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="4">Записей нет</td></tr>
 {% endfor %}

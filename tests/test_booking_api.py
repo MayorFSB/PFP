@@ -21,7 +21,7 @@ async def ctx():  # type: ignore[no-untyped-def]
 
 async def _seed(email: str) -> dict[str, str]:
     async with SessionLocal() as s:
-        f = Filial(name="Центр", address="ул. Мира 1")
+        f = Filial(name=f"Центр-{uuid.uuid4().hex[:6]}", address="ул. Мира 1")
         m = User(email="m_" + email, password_hash="!", role=Role.master)
         u = User(email=email, password_hash="!", role=Role.client)
         s.add_all([f, m, u])
