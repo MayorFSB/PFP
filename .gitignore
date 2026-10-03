@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+.uv/
+graphify-out/.graphify_*/
+graphify-out/cache/
+*.pyc
+.env
+.env.*
+!.env.example
+pgdata/
