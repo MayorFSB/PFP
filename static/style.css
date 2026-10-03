@@ -35,6 +35,8 @@ h1,h2{letter-spacing:-.01em}h2{margin-top:2rem;color:var(--acc)}
 .stat .card{min-width:150px;text-align:center}.stat b{font-size:1.7rem;display:block}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 svg.logo{width:26px;height:26px}
+#hero3d{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.85}
+#particles-toggle{position:fixed;bottom:1rem;right:1rem;z-index:100;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;font-size:.8rem}
 @media(max-width:700px){.hero{grid-template-columns:1fr}.hero h1{font-size:2rem}}
 /* Мобильная навигация */
 @media(max-width:700px){

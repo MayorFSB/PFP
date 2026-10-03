@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 <script src="/static/particles.js?v=1" defer></script>
 <script src="/static/consent.js?v=1" defer></script>
+<button id="particles-toggle">Анимация</button>
 <div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:1rem;z-index:200;align-items:center;gap:1rem;flex-wrap:wrap">
   <span style="flex:1;min-width:200px">Мы используем cookies для работы сайта. Продолжая, вы соглашаетесь с <a href="/policy">политикой</a>.</span>
   <button onclick="this.closest('#cookie-banner').style.display='none';localStorage.setItem('pfp-consent',new Date().toISOString())">Принять</button>

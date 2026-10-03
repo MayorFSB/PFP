@@ -21,7 +21,7 @@ tpl = Jinja2Templates(directory="templates")
 
 
 def _ctx(request: Request, **kw: object) -> dict[str, object]:
-    return {"request": request, **kw}
+    return {"request": request, "nonce": getattr(request.state, "csp_nonce", ""), **kw}
 
 
 async def _optional_user(request: Request, session: AsyncSession) -> User | None:
