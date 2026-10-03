@@ -42,8 +42,11 @@ class Booking(Base):
     master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("services.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
     idempotency_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    # День 2: exclusion constraint tsrange против двойной брони + Alembic env.
+    # Двойная бронь запрещена exclusion constraint (миграция 0003): один мастер — один визит в момент.
 
 
 class AuthSession(Base):
@@ -56,3 +59,28 @@ class AuthSession(Base):
     jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Service(Base):
+    """Услуга филиала: цена + длительность (слоты режутся по duration)."""
+
+    __tablename__ = "services"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    filial_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("filials.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    price_kopeks: Mapped[int]
+    duration_min: Mapped[int]
+
+
+class ScheduleRule(Base):
+    """Недельный шаблон мастера: weekday 0=пн … 6=вс, окно [start, end)."""
+
+    __tablename__ = "schedule_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    filial_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("filials.id"), index=True)
+    weekday: Mapped[int]
+    start_min: Mapped[int]  # минут от полуночи, кратно 15
+    end_min: Mapped[int]

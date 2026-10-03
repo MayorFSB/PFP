@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.modules.auth.router import router as auth_router
+from app.modules.booking.router import router as booking_router
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="PFP", version="0.1.0")
     app.include_router(auth_router)
+    app.include_router(booking_router)
 
     @app.get("/health")
     async def health() -> JSONResponse:
