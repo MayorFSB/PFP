@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,15 +10,19 @@ from app.core import jwt as tokens
 from app.core.db import get_session
 from app.modules.models import Role, User
 
+ACCESS_COOKIE = "pfp_access"
+
 
 async def get_current_user(
     authorization: str = Header(default=""),
+    pfp_access: str = Cookie(default=""),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    if not authorization.startswith("Bearer "):
+    token = authorization[7:] if authorization.startswith("Bearer ") else pfp_access
+    if not token:
         raise HTTPException(401, "no token")
     try:
-        payload = tokens.decode(authorization[7:], "access")
+        payload = tokens.decode(token, "access")
     except ValueError:
         raise HTTPException(401, "bad token") from None
     user = await session.get(User, uuid.UUID(payload["sub"]))

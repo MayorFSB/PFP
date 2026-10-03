@@ -1,0 +1,13 @@
+<h3>Свободно</h3>
+{% for s in slots %}
+<form method="post" action="/book" style="display:inline">
+<input type="hidden" name="csrf_token" value="{{ request.cookies.get('pfp_csrf','') }}">
+<input type="hidden" name="filial_id" value="{{ filial_id }}">
+<input type="hidden" name="master_id" value="{{ master_id }}">
+<input type="hidden" name="service_id" value="{{ service_id }}">
+<input type="hidden" name="start_at" value="{{ s }}">
+<input type="hidden" name="idempotency_key" value="{{ key }}-{{ loop.index }}">
+<button>{{ s[11:16] }}</button>
+</form>
+{% else %}<p>Нет свободных слотов на этот день.</p>
+{% endfor %}

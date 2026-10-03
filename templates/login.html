@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<h1>Вход</h1>
+<form method="post" action="/login">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label>Email <input type="email" name="email" required></label>
+<label>Пароль <input type="password" name="password" required></label>
+<button>Войти</button>
+</form>
+<p>Демо: <code>client@demo.local / demo1234</code></p>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ filial.name }}{% endblock %}
+{% block content %}
+<h1>{{ filial.name }}</h1><p>{{ filial.address }}</p>
+<h2>Услуги</h2>
+<table><tr><th>Услуга</th><th>Мин</th><th>Цена</th></tr>
+{% for s in services %}<tr><td>{{ s.name }}</td><td>{{ s.duration_min }}</td><td>{{ "%.2f"|format(s.price_kopeks/100) }} ₽</td></tr>{% endfor %}
+</table>
+<h2>Мастера</h2>
+<ul class="cards">
+{% for u, p in masters %}
+<li><strong>{{ p.display_name }}</strong> <small>{{ p.specialization }}</small>
+<form hx-get="/slots" hx-target="#slots" hx-swap="innerHTML">
+<input type="hidden" name="filial_id" value="{{ filial.id }}">
+<input type="hidden" name="master_id" value="{{ u.id }}">
+<label>Услуга <select name="service_id">{% for s in services %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label>
+<label>День <input type="date" name="day" value="2026-10-05"></label>
+<button>Слоты</button>
+</form></li>
+{% endfor %}
+</ul>
+<div id="slots"></div>
+{% endblock %}

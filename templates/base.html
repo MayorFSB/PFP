@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Парикмахерская{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
+<body>
+<header><nav>
+<a href="/">Филиалы</a>
+{% if user %}<a href="/cabinet">Кабинет</a>{% if user.role in ('master','admin') %}<a href="/master">Мастер</a>{% endif %}
+<form method="post" action="/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('pfp_csrf','') }}"><button>Выйти</button></form>
+{% else %}<a href="/login">Войти</a>{% endif %}
+</nav></header>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

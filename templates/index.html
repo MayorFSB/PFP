@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Филиалы — сеть парикмахерских{% endblock %}
+{% block content %}
+<h1>Наши филиалы</h1>
+<ul class="cards">
+{% for f in filials %}
+<li><a href="/f/{{ f.id }}"><strong>{{ f.name }}</strong><br><small>{{ f.address }}</small></a></li>
+{% else %}<li>Пока пусто — запустите сид: <code>python -m app.modules.seed</code></li>
+{% endfor %}
+</ul>
+{% endblock %}
