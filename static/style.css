@@ -36,3 +36,13 @@ h1,h2{letter-spacing:-.01em}h2{margin-top:2rem;color:var(--acc)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 svg.logo{width:26px;height:26px}
 @media(max-width:700px){.hero{grid-template-columns:1fr}.hero h1{font-size:2rem}}
+/* Мобильная навигация */
+@media(max-width:700px){
+  nav{position:fixed;bottom:0;top:auto;width:100%;background:rgba(15,14,12,.95);border-top:1px solid var(--line);padding:.5rem}
+  nav a{font-size:.75rem;flex:1;text-align:center}
+  nav .sp{display:none}
+  main{padding-bottom:5rem}
+  .slotrow{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}
+  .slotrow form{flex-shrink:0}
+  button,.btn-sm{min-height:44px;min-width:44px}
+}
