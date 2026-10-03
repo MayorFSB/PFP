@@ -74,8 +74,12 @@ metadata:
   name: {{ .Release.Name }}
 spec:
   rules:
+    {{- if .Values.host }}
     - host: {{ .Values.host | quote }}
       http:
+    {{- else }}
+    - http:
+    {{- end }}
         paths:
           - path: /
             pathType: Prefix

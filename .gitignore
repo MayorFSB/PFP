@@ -19,3 +19,5 @@ tools/
 MEMORY.md
 
 .playwright-mcp/
+
+tunnel.log

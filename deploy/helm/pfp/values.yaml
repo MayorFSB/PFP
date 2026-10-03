@@ -8,4 +8,4 @@ replicaCount: 2
 db:
   password: pfp
 
-host: pfp.localhost
+host: "" # пусто = ingress без host (для quick-tunnel со случайным именем); в проде указать домен
