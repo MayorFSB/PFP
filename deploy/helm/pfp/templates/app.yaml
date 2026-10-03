@@ -17,6 +17,19 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db
+                  key: password
+            - name: PFP_DATABASE_URL
+              value: "postgresql+asyncpg://pfp:$(DB_PASSWORD)@{{ .Release.Name }}-postgres:5432/pfp"
       containers:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -24,15 +37,15 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: PFP_DATABASE_URL
-              value: "postgresql+asyncpg://pfp:$(DB_PASSWORD)@{{ .Release.Name }}-postgres:5432/pfp"
-            - name: PFP_VALKEY_URL
-              value: "redis://{{ .Release.Name }}-valkey:6379/0"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-db
                   key: password
+            - name: PFP_DATABASE_URL
+              value: "postgresql+asyncpg://pfp:$(DB_PASSWORD)@{{ .Release.Name }}-postgres:5432/pfp"
+            - name: PFP_VALKEY_URL
+              value: "redis://{{ .Release.Name }}-valkey:6379/0"
           readinessProbe:
             httpGet:
               path: /ready
