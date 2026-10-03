@@ -118,6 +118,9 @@ async def create_booking(
             return winner
         raise SlotTaken("slot taken") from None
     await session.refresh(booking)
+    from app.core.metrics import bookings_total
+
+    bookings_total.labels(str(filial_id)).inc()
     await cache.invalidate(
         cache.slots_key(f"{filial_id}:{master_id}:{service_id}", day.isoformat())
     )

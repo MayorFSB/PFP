@@ -31,11 +31,16 @@ def unpack(blob: bytes) -> Any:
 
 
 async def cached(key: str, ttl: int, loader: Any) -> Any:
+    from app.core.metrics import cache_hits, cache_miss
+
+    prefix = key.split(":")[1] if ":" in key else "misc"
     r = get_client()
     hit = await r.get(key)
     if hit is not None:
+        cache_hits.labels(prefix).inc()
         assert isinstance(hit, bytes)
         return unpack(hit)
+    cache_miss.labels(prefix).inc()
     value = await loader()
     await r.setex(key, ttl, pack(value))
     return value
