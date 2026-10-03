@@ -40,7 +40,14 @@ async def _issue(session: AsyncSession, user: User) -> tuple[str, str]:
 
 async def login(session: AsyncSession, email: str, password: str) -> tuple[str, str]:
     user = await session.scalar(select(User).where(User.email == email.strip().lower()))
-    if user is None or not verify_password(password, user.password_hash):
+    if user is None:
+        # timing-oracle: несуществующий email тоже "проверяем" argon2 столько же времени
+        verify_password(
+            password,
+            "$argon2id$v=19$m=65536,t=3,p=4$dGVzdA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        )
+        raise AuthError("bad credentials")
+    if not verify_password(password, user.password_hash):
         raise AuthError("bad credentials")
     return await _issue(session, user)
 

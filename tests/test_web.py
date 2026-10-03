@@ -15,6 +15,13 @@ app = create_app()
 
 @pytest_asyncio.fixture()
 async def client():  # type: ignore[no-untyped-def]
+    # rate-limit на логин считает по IP — в тестах сбрасываем окно перед каждым логином
+    from app.core import cache
+
+    try:
+        await cache.get_client().delete("pfp:rl:login:testclient")
+    except Exception:
+        pass
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
         yield c
 

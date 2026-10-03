@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,8 +46,13 @@ async def register(
 
 @router.post("/login")
 async def login(
-    body: LoginIn, resp: Response, session: AsyncSession = Depends(get_session)
+    body: LoginIn, resp: Response, request: Request, session: AsyncSession = Depends(get_session)
 ) -> TokenOut:
+    from app.core.guard import login_allowed
+
+    ip = request.client.host if request.client else "unknown"
+    if not await login_allowed(ip, body.email):
+        raise HTTPException(429, "too many attempts")
     try:
         access, refresh = await service.login(session, body.email, body.password)
     except service.AuthError as e:
