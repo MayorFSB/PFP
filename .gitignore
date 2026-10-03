@@ -1,10 +1,19 @@
 __pycache__/
 .venv/
 .uv/
-graphify-out/.graphify_*/
-graphify-out/cache/
 *.pyc
 .env
 .env.*
 !.env.example
 pgdata/
+
+# --- Локальное / машинно-зависимое (не файлы проекта) ---
+# graphify граф пересобирается одной командой, в репо ему делать нечего
+graphify-out/
+# навыки и конфиг агента: абсолютные пути этой машины (D:\Soft\...)
+.opencode/
+opencode.json
+# dev-тулинг без кода продукта (пока только доки)
+tools/
+# живая память сессии: локальные пути, статусы, черновики
+MEMORY.md

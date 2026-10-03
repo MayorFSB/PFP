@@ -7,10 +7,12 @@ Auth: login/password (Argon2id) + Google OIDC + Telegram Login. RBAC: client/mas
 ## Быстрый старт (день 1)
 ```powershell
 uv sync
-docker compose up -d postgres valkey
+docker compose up -d postgres valkey  # PG :5433, Valkey :6380 (порты хоста)
 alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
+
+> Порты смещены т.к. на dev-машине 5432 занят хостовым PostgreSQL 18, а 6379 — соседним проектом. В проде стандартные.
 
 ## Демо через Cloudflare Tunnel (self-host)
 ```powershell
