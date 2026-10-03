@@ -38,7 +38,7 @@ target-version = "py314"
 
 [tool.ruff.lint]
 # B008: Depends() в дефолтах — идиома FastAPI, не баг
-per-file-ignores = {"app/**/router.py" = ["B008"], "app/**/deps.py" = ["B008"], "tests/**" = ["B008"]}
+per-file-ignores = { "app/**/router.py" = ["B008"], "app/**/deps.py" = ["B008"], "tests/**" = ["B008", "S110", "BLE001"] }
 
 [tool.mypy]
 python_version = "3.14"

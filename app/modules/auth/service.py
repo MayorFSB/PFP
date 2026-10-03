@@ -19,12 +19,22 @@ class AuthError(Exception):
     pass
 
 
-async def register(session: AsyncSession, email: str, password: str) -> User:
+async def register(
+    session: AsyncSession, email: str, password: str, birth_date: str | None = None
+) -> User:
     email = email.strip().lower()
     exists = await session.scalar(select(User).where(User.email == email))
     if exists:
         raise AuthError("email taken")
-    user = User(email=email, password_hash=hash_password(password), role=Role.client)
+    bd = None
+    if birth_date:
+        from datetime import date as d
+
+        try:
+            bd = d.fromisoformat(birth_date)
+        except ValueError:
+            raise AuthError("bad birth_date") from None
+    user = User(email=email, password_hash=hash_password(password), role=Role.client, birth_date=bd)
     session.add(user)
     await session.commit()
     await session.refresh(user)

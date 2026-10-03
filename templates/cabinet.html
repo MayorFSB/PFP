@@ -2,10 +2,17 @@
 {% block title %}Мои записи{% endblock %}
 {% block content %}
 <h1>Мои записи</h1>
+<div class="stat">
+<div class="card"><b>{{ visits }}</b>визитов</div>
+<div class="card"><b>{{ level_name }}</b>уровень</div>
+<div class="card"><b>{{ "%.0f"|format(level_discount*100) }}%</b>скидка</div>
+{% if to_next > 0 %}<div class="card"><b>{{ to_next }}</b>до {{ next_threshold }} визитов</div>{% endif %}
+{% if birthday_discount > 0 %}<div class="card"><b>{{ "%.0f"|format(birthday_discount*100) }}%</b>скидка ко дню рождения активна!</div>{% endif %}
+</div>
+<h2>История</h2>
 <table><tr><th>Когда</th><th>Услуга</th><th>Статус</th><th></th></tr>
-{% set ST = {'pending':'ожидает','done':'выполнен','cancelled':'отменён'} %}
 {% for b, s in rows %}
-<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{{ ST.get(b.status, b.status) }}</td>
+<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{{ b.status }}</td>
 <td>{% if b.status == 'pending' %}<form method="post" action="/cancel/{{ b.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Отменить</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="4">Записей нет</td></tr>
 {% endfor %}

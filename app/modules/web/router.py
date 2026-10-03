@@ -40,6 +40,11 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)) 
     return tpl.TemplateResponse(request, "index.html", _ctx(request, filials=filials, user=user))
 
 
+@router.get("/policy", response_class=HTMLResponse)
+async def policy(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "policy.html", _ctx(request))
+
+
 @router.get("/f/{filial_id}", response_class=HTMLResponse)
 async def filial(
     request: Request, filial_id: uuid.UUID, session: AsyncSession = Depends(get_session)
@@ -156,6 +161,8 @@ async def cabinet(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
+    from app.modules import loyalty
+
     rows = (
         await session.execute(
             select(Booking, Service)
@@ -165,9 +172,26 @@ async def cabinet(
             .limit(20)
         )
     ).all()
+    visits = await loyalty.visits_count(session, user.id)
+    level_name, level_discount = loyalty.loyalty_level(visits)
+    to_next, next_threshold = await loyalty.next_level_progress(session, user.id)
+    bd = loyalty.birthday_discount(user)
     csrf_token = request.cookies.get(csrf.CSRF_COOKIE, "") or csrf.new_token()
     resp = tpl.TemplateResponse(
-        request, "cabinet.html", _ctx(request, user=user, rows=rows, csrf_token=csrf_token)
+        request,
+        "cabinet.html",
+        _ctx(
+            request,
+            user=user,
+            rows=rows,
+            csrf_token=csrf_token,
+            visits=visits,
+            level_name=level_name,
+            level_discount=level_discount,
+            to_next=to_next,
+            next_threshold=next_threshold,
+            birthday_discount=bd,
+        ),
     )
     if not request.cookies.get(csrf.CSRF_COOKIE):
         resp.set_cookie(csrf.CSRF_COOKIE, csrf_token, samesite="lax")
