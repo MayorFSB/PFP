@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Админка{% endblock %}
+{% block content %}
+<h1>Админка — вся сеть</h1>
+<div class="stat">
+<div class="card"><b>{{ stats.total }}</b>записей</div>
+<div class="card"><b>{{ "%.0f"|format(stats.revenue) }} ₽</b>выручка</div>
+<div class="card"><b>{{ stats.by_status.get('pending',0) }}</b>ожидают</div>
+<div class="card"><b>{{ stats.by_status.get('paid',0) }}</b>оплачено</div>
+</div>
+<h2>Записи по дням (14 дней)</h2>
+<svg viewBox="0 0 560 140" width="100%" role="img" aria-label="График записей">
+{% for b in stats.bars %}
+<rect x="{{ loop.index0*40+10 }}" y="{{ 120-b.h }}" width="30" height="{{ b.h }}" rx="3" fill="#7bc96f"><title>{{ b.label }}: {{ b.v }}</title></rect>
+<text x="{{ loop.index0*40+12 }}" y="135" font-size="9" fill="#a89f91">{{ b.label[5:] }}</text>
+{% endfor %}
+</svg>
+<h2>Пользователи (последние 50)</h2>
+<table><tr><th>Email</th><th>Роль</th><th></th></tr>
+{% for u in users %}
+<tr><td>{{ u.email }}</td><td>{{ u.role.value }}</td>
+<td><form method="post" action="/admin/role">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="user_id" value="{{ u.id }}">
+<select name="role">{% for r in ['client','master','moderator','admin'] %}<option {% if r == u.role.value %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+<button>OK</button></form></td></tr>
+{% endfor %}
+</table>
+{% endblock %}

@@ -9,11 +9,17 @@
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
 <body>
-<header><nav>
+<header class="top"><nav>
+<a class="brand" href="/"><svg class="logo" viewBox="0 0 32 32" fill="none" stroke="#e8b34b" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="24" r="3.4"/><path d="M10.5 10 27 27M10.5 22 27 5"/></svg>PFP</a>
 <a href="/">Филиалы</a>
-{% if user %}<a href="/cabinet">Кабинет</a>{% if user.role in ('master','admin') %}<a href="/master">Мастер</a>{% endif %}
+{% if user %}
+<a href="/cabinet">Кабинет</a>
+{% if user.role in ('master','admin') %}<a href="/master">Мастер</a>{% endif %}
+{% if user.role in ('moderator','admin') %}<a href="/manager">Управление</a>{% endif %}
+{% if user.role == 'admin' %}<a href="/admin">Админ</a>{% endif %}
+<span class="sp"></span><span>{{ user.email }}</span>
 <form method="post" action="/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('pfp_csrf','') }}"><button>Выйти</button></form>
-{% else %}<a href="/login">Войти</a>{% endif %}
+{% else %}<span class="sp"></span><a href="/login">Войти</a>{% endif %}
 </nav></header>
 <main>{% block content %}{% endblock %}</main>
 </body>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Управление филиалом{% endblock %}
+{% block content %}
+<h1>Управление</h1>
+<form method="get" action="/manager">
+<label>Филиал <select name="filial_id" onchange="this.form.submit()">
+{% for f in filials %}<option value="{{ f.id }}" {% if f.id|string == fid|string %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+</select></label>
+</form>
+<div class="stat">
+<div class="card"><b>{{ stats.total }}</b>записей</div>
+<div class="card"><b>{{ "%.0f"|format(stats.revenue) }} ₽</b>выручка</div>
+<div class="card"><b>{{ stats.by_status.get('pending',0) }}</b>ожидают</div>
+<div class="card"><b>{{ stats.by_status.get('cancelled',0) }}</b>отмен</div>
+</div>
+<h2>Записи по дням (14 дней)</h2>
+<svg viewBox="0 0 560 140" width="100%" role="img" aria-label="График записей">
+{% for b in stats.bars %}
+<rect x="{{ loop.index0*40+10 }}" y="{{ 120-b.h }}" width="30" height="{{ b.h }}" rx="3" fill="#e8b34b"><title>{{ b.label }}: {{ b.v }}</title></rect>
+<text x="{{ loop.index0*40+12 }}" y="135" font-size="9" fill="#a89f91">{{ b.label[5:] }}</text>
+{% endfor %}
+</svg>
+<h2>Топ мастеров</h2>
+<table><tr><th>Мастер</th><th>Записей</th></tr>
+{% for name, c in stats.top %}<tr><td>{{ name }}</td><td>{{ c }}</td></tr>{% endfor %}
+</table>
+{% endblock %}

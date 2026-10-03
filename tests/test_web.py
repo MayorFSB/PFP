@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.main import create_app
-from app.modules.models import Filial
+from app.modules.models import Filial, Role, User
 
 app = create_app()
 
@@ -56,3 +56,22 @@ async def test_web_login_and_cabinet(client: httpx.AsyncClient) -> None:
     assert r.status_code in (200, 303)
     cab = await client.get("/cabinet")
     assert cab.status_code == 200 and "Мои записи" in cab.text
+
+
+async def test_manager_admin_rbac(client: httpx.AsyncClient) -> None:
+    assert (await client.get("/manager")).status_code in (401, 403)
+    assert (await client.get("/admin")).status_code in (401, 403)
+    email = f"a_{uuid.uuid4().hex[:8]}@example.com"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": "secret123"})
+    async with SessionLocal() as s:
+        u = await s.scalar(select(User).where(User.email == email))
+        assert u is not None
+        u.role = Role.admin
+        await s.commit()
+    token = (
+        await client.post("/api/v1/auth/login", json={"email": email, "password": "secret123"})
+    ).json()["access_token"]
+    h = {"Authorization": f"Bearer {token}"}
+    assert (await client.get("/manager", headers=h)).status_code == 200
+    admin_page = await client.get("/admin", headers=h)
+    assert admin_page.status_code == 200 and "выручка" in admin_page.text
