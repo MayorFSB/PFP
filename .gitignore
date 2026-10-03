@@ -17,3 +17,5 @@ opencode.json
 tools/
 # живая память сессии: локальные пути, статусы, черновики
 MEMORY.md
+
+.playwright-mcp/
