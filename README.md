@@ -25,6 +25,7 @@ Demo-аккаунты (пароль `demo1234`):
 
 ![Филиалы](docs/img/index.png)
 ![Кабинет](docs/img/cabinet.png)
+![Админка](docs/img/admin.png)
 
 ## Быстрый старт
 
