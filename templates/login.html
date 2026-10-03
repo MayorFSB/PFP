@@ -9,4 +9,15 @@
 <button>Войти</button>
 </form>
 <p>Демо: <code>client@demo.local / demo1234</code></p>
+
+<!-- 2. Демовход: 4 роли -->
+<h2>Демо-вход (один клик)</h2>
+<p class="muted">Четыре роли — разные кабинеты и права:</p>
+<div class="demo-grid">
+<form method="post" action="/demo/client"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn ghost">Клиент</button><small>свои записи</small></form>
+<form method="post" action="/demo/master"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn ghost">Мастер</button><small>неделя / месяц</small></form>
+<form method="post" action="/demo/moderator"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn ghost">Управляющий</button><small>филиал + мастера</small></form>
+<form method="post" action="/demo/admin"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn ghost">Администратор</button><small>всё</small></form>
+</div>
+<p class="muted" style="margin-top:1rem">Аккаунты: <code>client@demo.local</code>, <code>master00@demo.local</code>, <code>moderator@demo.local</code>, <code>admin@demo.local</code> / пароль <code>demo1234</code></p>
 {% endblock %}

@@ -24,6 +24,7 @@ Faker.seed(42)
 
 # (название, длительность мин, цена копейки) — середины из seed_demo.md
 SERVICES: list[tuple[str, int, int]] = [
+    ("Стрижка вспышка", 15, 60000),
     ("Стрижка мужская классическая", 45, 150000),
     ("Стрижка под машинку", 25, 80000),
     ("Моделирование бороды", 35, 105000),
@@ -56,8 +57,10 @@ SERVICES: list[tuple[str, int, int]] = [
 FILIALS = [
     ("Центр", "ул. Мира, 1"),
     ("Север", "Ленинградский пр., 45"),
-    ("Юг", "ул. Гарибальди, 12"),
+    ("Парикмахерская имени Рикардо Милоса", "ул. Гарибальди, 12"),
 ]
+# Переименования при апдейте сида на живой БД (старое → новое).
+FILIAL_RENAMES = {"Юг": "Парикмахерская имени Рикардо Милоса"}
 
 SPECS = ["барбер", "колорист", "стилист", "универсал", "детский мастер"]
 DEMO_PW = "demo1234"
@@ -68,6 +71,14 @@ async def ensure_filials() -> list[Filial]:
         out = []
         for name, address in FILIALS:
             f = await s.scalar(select(Filial).where(Filial.name == name))
+            if f is None:
+                legacy = next((old for old, new in FILIAL_RENAMES.items() if new == name), None)
+                if legacy:
+                    f = await s.scalar(select(Filial).where(Filial.name == legacy))
+                    if f is not None:
+                        f.name = name
+                        await s.commit()
+                        await s.refresh(f)
             if f is None:
                 f = Filial(name=name, address=address)
                 s.add(f)
@@ -166,7 +177,11 @@ async def ensure_clients(n: int = 200) -> int:
 
 async def ensure_demo_accounts() -> None:
     async with SessionLocal() as s:
-        for email, role in [("client@demo.local", Role.client), ("admin@demo.local", Role.admin)]:
+        for email, role in [
+            ("client@demo.local", Role.client),
+            ("moderator@demo.local", Role.moderator),
+            ("admin@demo.local", Role.admin),
+        ]:
             u = await s.scalar(select(User).where(User.email == email))
             if u is None:
                 s.add(User(email=email, password_hash=hash_password(DEMO_PW), role=role))

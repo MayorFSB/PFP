@@ -1,13 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Сеть парикмахерских PFP{% endblock %}
+{% block title %}Сеть парикмахерских PFP — Стрижка вспышка{% endblock %}
 {% block content %}
 <div id="hero3d" aria-hidden="true"></div>
 <script type="importmap" nonce="{{ nonce }}">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
 <script type="module" nonce="{{ nonce }}" src="/static/hero3d.js?v=2"></script>
+
+<!-- 3.1 Бренд + ХИРО -->
 <section class="hero">
 <div>
-<h1>Стрижка без ожидания</h1>
-<p>3 филиала · онлайн-запись за 3 клика · мастера с рейтингом. Выбери филиал — дальше всё само.</p>
+<p class="kicker">PFP — сеть парикмахерских</p>
+<h1>Стрижка вспышка</h1>
+<p>Быстро, стильно и без очереди. 3 филиала, онлайн-запись за 3 клика, мастера с рейтингом.</p>
 <div class="cta"><a class="btn" href="#filials">Выбрать филиал</a><a class="btn ghost" href="/login">Войти</a></div>
 </div>
 <div class="card">
@@ -19,6 +22,8 @@
 </svg>
 </div>
 </section>
+
+<!-- Филиалы (точка входа в воронку) -->
 <h2 id="filials">Филиалы</h2>
 <div class="grid">
 {% for f in filials %}
@@ -26,4 +31,99 @@
 {% else %}<div class="card">Пока пусто — запустите сид: <code>python -m app.modules.seed</code></div>
 {% endfor %}
 </div>
+
+<!-- 3.2 Ценность для клиентов -->
+<section class="values">
+<h2>Почему выбирают нас</h2>
+<div class="grid">
+<div class="card"><b>0 очереди</b><br><small>Онлайн-слоты: приходишь ровно к своему времени</small></div>
+<div class="card"><b>Фикс-цены</b><br><small>Цена в прайсе = цена в кресле. Без сюрпризов</small></div>
+<div class="card"><b>Мастера с рейтингом</b><br><small>Реальные отзывы и рейтинг каждого мастера</small></div>
+<div class="card"><b>Скидки постоянникам</b><br><small>Лояльность до 10% + 15% ко дню рождения</small></div>
+</div>
+</section>
+
+<!-- 3.3 Популярные услуги -->
+<h2 id="services">Популярные услуги</h2>
+<div class="grid">
+{% for s, cnt in popular %}
+<div class="card service">
+<strong>{{ s.name }}</strong>
+<small>{{ s.duration_min }} мин · {{ "%.0f"|format(s.price_kopeks/100) }} ₽</small>
+{% if cnt %}<span class="badge">{{ cnt }} записей</span>{% endif %}
+</div>
+{% else %}
+<div class="card">Пока нет услуг — запустите сид</div>
+{% endfor %}
+</div>
+
+<!-- 3.4 Команда мастеров + отзывы -->
+<h2 id="team">Наша команда</h2>
+<div class="grid team">
+{% for u, p in masters %}
+<div class="card person">
+<img src="/static/img/team-{{ '%02d'|format(loop.index) }}.svg" alt="Фото мастера {{ p.display_name }}" width="512" height="768" loading="lazy">
+<strong>{{ p.display_name }}</strong>
+<small>{{ p.specialization }}</small>
+<span class="rate">★ 4.9</span>
+</div>
+{% endfor %}
+</div>
+
+<h3>Отзывы</h3>
+<div class="reviews">
+{% for r in reviews %}
+<div class="card review">
+<img src="/static/img/face-{{ '%02d'|format(loop.index) }}.svg" alt="Аватар {{ r.name }}" width="48" height="48" loading="lazy" style="border-radius:50%;width:48px;height:48px;object-fit:cover">
+<div class="rev-body"><b>{{ r.name }}</b><br><small>{{ r.text }}</small></div>
+</div>
+{% endfor %}
+</div>
+
+<!-- 3.5 Работы: до и после -->
+<h2 id="works">Работы: до и после</h2>
+<div class="grid works">
+{% for i in range(1,5) %}
+<div class="card"><img src="/static/img/result-{{ '%02d'|format(i) }}.svg" alt="Результат до и после" width="768" height="512" loading="lazy"></div>
+{% endfor %}
+</div>
+
+<!-- 3.6 Акции и скидки -->
+<h2 id="promo">Акции и скидки</h2>
+<div class="grid promos">
+<a class="card promo" href="#filials">
+<img src="/static/img/promo-01.svg" alt="Акция: Стрижка вспышка" width="768" height="512" loading="lazy">
+<b>Стрижка вспышка — 600 ₽</b><small>Экспресс-стрижка за 15 минут. Без записи — по очереди</small>
+</a>
+<a class="card promo" href="/register">
+<img src="/static/img/promo-02.svg" alt="Скидка ко дню рождения" width="768" height="512" loading="lazy">
+<b>−15% ко дню рождения</b><small>Скидка ±7 дней от даты рождения. Укажи дату в профиле</small>
+</a>
+</div>
+
+<!-- 3.7 Дипломы и награды -->
+<h2>Дипломы, награды и мастер-классы</h2>
+<div class="certs">
+{% for i in range(1,5) %}
+<img src="/static/img/cert-{{ '%02d'|format(i) }}.svg" alt="Диплом {{ i }}" width="768" height="512" loading="lazy">
+{% endfor %}
+</div>
+<p class="certs-note">Наши мастера регулярно проходят обучение и выступают на мастер-классах: техника фейд, работа с текстурой, колористика премиум-сегмента.</p>
+
+<!-- 3.8 Воронка: как записаться -->
+<section class="funnel">
+<h2>Запись за 3 шага</h2>
+<div class="steps">
+<div class="step"><i>1</i><b>Выберите филиал</b><small>Удобный адрес из трёх</small></div>
+<div class="step"><i>2</i><b>Выберите мастера и время</b><small>Живые слоты в расписании</small></div>
+<div class="step"><i>3</i><b>Подтвердите</b><small>Запись зафиксирована, напомним перед визитом</small></div>
+</div>
+</section>
+
+<!-- 3.9 CTA блок -->
+<section class="cta-block">
+<h2>Готов записаться?</h2>
+<p>Займёт меньше минуты. Выберите филиал и время — остальное мы берём на себя.</p>
+<div class="cta"><a class="btn" href="#filials">Выбрать филиал</a><a class="btn ghost" href="/register">Зарегистрироваться</a></div>
+</section>
 {% endblock %}

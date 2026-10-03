@@ -1,7 +1,47 @@
 {% extends "base.html" %}
 {% block title %}Кабинет мастера{% endblock %}
 {% block content %}
-<h1>Записи ко мне</h1>
+<h1>Кабинет мастера</h1>
+
+<!-- Неделя -->
+<h2>Неделя {{ week_label }}</h2>
+<div class="week">
+{% for d in week %}
+<div class="day {% if d.today %}today{% endif %}">
+<b>{{ d.label }}</b>
+{% if d.rows %}
+{% for b, s in d.rows %}
+<div class="appt"><span class="time">{{ b.start_at.strftime("%H:%M") }}</span> {{ s.name }}</div>
+{% endfor %}
+{% else %}
+<small class="muted">свободно</small>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+
+<!-- Месяц -->
+<h2>Месяц {{ month_label }}</h2>
+<div class="cal">
+<div class="cal-head">
+{% for wd in ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"] %}<div>{{ wd }}</div>{% endfor %}
+</div>
+{% for wk in cal_weeks %}
+<div class="cal-row">
+{% for cell in wk %}
+{% if cell %}
+<div class="cal-day {% if cell.today %}today{% endif %}">
+<span class="cal-day-num">{{ cell.day }}</span>
+{% if cell.count %}<span class="cal-dot" title="{{ cell.count }} записей"></span>{% endif %}
+</div>
+{% else %}<div class="cal-day empty"></div>{% endif %}
+{% endfor %}
+</div>
+{% endfor %}
+</div>
+
+<!-- Ближайшие записи (таблица) -->
+<h2>Ближайшие записи</h2>
 <table><tr><th>Когда</th><th>Услуга</th><th>Статус</th></tr>
 {% set ST = {'pending':'ожидает','done':'выполнен','cancelled':'отменён'} %}
 {% for b, s in rows %}

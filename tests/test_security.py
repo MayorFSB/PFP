@@ -31,7 +31,7 @@ async def test_login_rate_limit(client: httpx.AsyncClient) -> None:
 
     try:
         await cache.get_client().delete("pfp:rl:login:testclient")
-    except Exception:  # noqa: BLE001, S110 — тестовая чистка, Valkey может быть недоступен
+    except Exception:
         pass
     email = f"rl_{uuid.uuid4().hex[:8]}@example.com"
     codes = [

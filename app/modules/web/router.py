@@ -1,5 +1,6 @@
 """SSR: каталог → мастер → слоты → бронь, кабинеты. HTMX для слотов, формы с CSRF."""
 
+import calendar
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -19,6 +20,14 @@ from app.modules.web import csrf
 router = APIRouter(tags=["web"])
 tpl = Jinja2Templates(directory="templates")
 
+DEMO_PW = "demo1234"
+DEMO_ACCOUNTS = {
+    "client": ("client@demo.local", "/cabinet"),
+    "master": ("master00@demo.local", "/master"),
+    "moderator": ("moderator@demo.local", "/manager"),
+    "admin": ("admin@demo.local", "/admin"),
+}
+
 
 def _ctx(request: Request, **kw: object) -> dict[str, object]:
     return {"request": request, "nonce": getattr(request.state, "csp_nonce", ""), **kw}
@@ -37,12 +46,83 @@ async def _optional_user(request: Request, session: AsyncSession) -> User | None
 async def index(request: Request, session: AsyncSession = Depends(get_session)) -> HTMLResponse:
     filials = (await session.execute(select(Filial).order_by(Filial.name))).scalars().all()
     user = await _optional_user(request, session)
-    return tpl.TemplateResponse(request, "index.html", _ctx(request, filials=filials, user=user))
+
+    # Популярные услуги: топ-4 по количеству выполненных записей
+    popular_q = (
+        await session.execute(
+            select(Service, func.count(Booking.id))
+            .join(Booking, Booking.service_id == Service.id)
+            .where(Booking.status.in_(["done", "paid"]))
+            .group_by(Service.id)
+            .order_by(func.count(Booking.id).desc())
+            .limit(4)
+        )
+    ).all()
+    popular: list[tuple[Service, int]] = [(row[0], row[1]) for row in popular_q]
+    if not popular:
+        popular = [
+            (s, 0)
+            for s in (
+                await session.execute(
+                    select(Service)
+                    .join(Filial, Filial.id == Service.filial_id)
+                    .where(Filial.name == "Центр")
+                    .order_by(Service.price_kopeks)
+                    .limit(4)
+                )
+            )
+            .scalars()
+            .all()
+        ]
+
+    # Команда мастеров (6 первых по имени)
+    masters = (
+        await session.execute(
+            select(User, MasterProfile)
+            .join(MasterProfile, MasterProfile.user_id == User.id)
+            .order_by(MasterProfile.display_name)
+            .limit(6)
+        )
+    ).all()
+
+    # Статичные отзывы для демо
+    reviews = [
+        {
+            "name": "Артём",
+            "text": "Пришёл за 15 минут до закрытия — всё равно записали. Стрижка вспышка — топ!",
+        },
+        {
+            "name": "Мария",
+            "text": "Понравилось, что цена сразу на месте, без доплат. Мастер объяснил, что подойдёт именно мне.",
+        },
+        {
+            "name": "Дмитрий",
+            "text": "Результат — на фото. Скидка ко дню рождения сработала автоматически, приятно.",
+        },
+    ]
+
+    return tpl.TemplateResponse(
+        request,
+        "index.html",
+        _ctx(
+            request, filials=filials, user=user, popular=popular, masters=masters, reviews=reviews
+        ),
+    )
 
 
 @router.get("/policy", response_class=HTMLResponse)
 async def policy(request: Request) -> HTMLResponse:
     return tpl.TemplateResponse(request, "policy.html", _ctx(request))
+
+
+@router.get("/agreement", response_class=HTMLResponse)
+async def agreement(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "agreement.html", _ctx(request))
+
+
+@router.get("/offer", response_class=HTMLResponse)
+async def offer(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "offer.html", _ctx(request))
 
 
 @router.get("/f/{filial_id}", response_class=HTMLResponse)
@@ -155,6 +235,61 @@ async def logout(
     return resp
 
 
+@router.get("/register", response_class=HTMLResponse)
+async def register_form(request: Request) -> HTMLResponse:
+    token = request.cookies.get(csrf.CSRF_COOKIE, "") or csrf.new_token()
+    resp = tpl.TemplateResponse(request, "register.html", _ctx(request, csrf_token=token))
+    resp.set_cookie(csrf.CSRF_COOKIE, token, samesite="lax")
+    return resp
+
+
+@router.post("/register")
+async def register_submit(
+    request: Request,
+    email: str = Form(),
+    password: str = Form(),
+    pd_consent: str | None = Form(None),
+    csrf_token: str = Form(),
+    session: AsyncSession = Depends(get_session),
+) -> RedirectResponse:
+    csrf.check(request, csrf_token)
+    if not pd_consent:
+        raise HTTPException(400, "необходимо согласие с обработкой персональных данных")
+    try:
+        await auth.register(session, email, password)
+    except auth.AuthError as e:
+        raise HTTPException(409, str(e)) from e
+    access, refresh = await auth.login(session, email, password)
+    resp = RedirectResponse("/cabinet", status_code=303)
+    resp.set_cookie(ACCESS_COOKIE, access, httponly=True, samesite="lax", max_age=900)
+    resp.set_cookie("pfp_refresh", refresh, httponly=True, samesite="lax", max_age=30 * 86400)
+    resp.set_cookie(csrf.CSRF_COOKIE, csrf.new_token(), samesite="lax")
+    return resp
+
+
+@router.post("/demo/{role}")
+async def demo_login(
+    role: str,
+    request: Request,
+    csrf_token: str = Form(),
+    session: AsyncSession = Depends(get_session),
+) -> RedirectResponse:
+    csrf.check(request, csrf_token)
+    pair = DEMO_ACCOUNTS.get(role)
+    if pair is None:
+        raise HTTPException(404, "unknown demo role")
+    email, dest = pair
+    try:
+        access, refresh = await auth.login(session, email, DEMO_PW)
+    except auth.AuthError:
+        raise HTTPException(409, "demo account missing — run seed") from None
+    resp = RedirectResponse(dest, status_code=303)
+    resp.set_cookie(ACCESS_COOKIE, access, httponly=True, samesite="lax", max_age=900)
+    resp.set_cookie("pfp_refresh", refresh, httponly=True, samesite="lax", max_age=30 * 86400)
+    resp.set_cookie(csrf.CSRF_COOKIE, csrf.new_token(), samesite="lax")
+    return resp
+
+
 @router.get("/cabinet", response_class=HTMLResponse)
 async def cabinet(
     request: Request,
@@ -252,7 +387,78 @@ async def master_cabinet(
 ) -> HTMLResponse:
     if user.role not in (Role.master, Role.admin):
         raise HTTPException(403)
-    start = datetime.now(UTC).date().isoformat()
+
+    today = datetime.now(UTC).date()
+    # Неделя: Пн-Вс текущей недели
+    monday = today - timedelta(days=today.weekday())
+    sunday_eve = monday + timedelta(days=7)
+    week_rows = (
+        await session.execute(
+            select(Booking, Service)
+            .join(Service, Service.id == Booking.service_id)
+            .where(
+                Booking.master_id == user.id,
+                Booking.status != "cancelled",
+                Booking.start_at >= datetime(monday.year, monday.month, monday.day, tzinfo=UTC),
+                Booking.start_at
+                < datetime(sunday_eve.year, sunday_eve.month, sunday_eve.day, tzinfo=UTC),
+            )
+            .order_by(Booking.start_at)
+        )
+    ).all()
+
+    week_labels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    week = []
+    for i, wd in enumerate(week_labels):
+        day_date = monday + timedelta(days=i)
+        day_rows = [(b, s) for b, s in week_rows if b.start_at.date() == day_date]
+        week.append(
+            {
+                "label": f"{wd} {day_date.day:02d}.{day_date.month:02d}",
+                "rows": day_rows,
+                "today": day_date == today,
+            }
+        )
+    week_label = (
+        f"{monday.day:02d}.{monday.month:02d} — {sunday_eve.day - 1:02d}.{sunday_eve.month:02d}"
+    )
+
+    # Месяц: календарная сетка с точками записей
+    month_start = today.replace(day=1)
+    month_end = (month_start + timedelta(days=32)).replace(day=1)
+    month_bookings = (
+        await session.execute(
+            select(func.date(Booking.start_at), func.count())
+            .where(
+                Booking.master_id == user.id,
+                Booking.status != "cancelled",
+                Booking.start_at >= month_start,
+                Booking.start_at < month_end,
+            )
+            .group_by(func.date(Booking.start_at))
+        )
+    ).all()
+    booked_days = {str(d): c for d, c in month_bookings}
+
+    cal = calendar.Calendar(firstweekday=0)
+    cal_weeks: list[list[dict[str, object] | None]] = []
+    for wk in cal.monthdatescalendar(today.year, today.month):
+        row: list[dict[str, object] | None] = []
+        for d in wk:
+            if d.month != today.month:
+                row.append(None)
+            else:
+                row.append(
+                    {
+                        "day": d.day,
+                        "today": d == today,
+                        "count": booked_days.get(d.isoformat(), 0),
+                    }
+                )
+        cal_weeks.append(row)
+    month_label = today.strftime("%B %Y").capitalize()
+
+    # Ближайшие записи (таблица, как было)
     rows = (
         await session.execute(
             select(Booking, Service)
@@ -262,8 +468,19 @@ async def master_cabinet(
             .limit(50)
         )
     ).all()
+
     return tpl.TemplateResponse(
-        request, "master.html", _ctx(request, user=user, rows=rows, start=start)
+        request,
+        "master.html",
+        _ctx(
+            request,
+            user=user,
+            rows=rows,
+            week=week,
+            week_label=week_label,
+            cal_weeks=cal_weeks,
+            month_label=month_label,
+        ),
     )
 
 
