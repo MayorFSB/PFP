@@ -4,7 +4,8 @@
 - Установка: `uv sync` (Python 3.14, НЕ pip install вслепую).
 - Линт: `ruff check . && ruff format --check .`
 - Типы: `mypy app`
-- Тесты: `pytest -q` (новые фичи = новый тест в `tests/`).
+- Тесты: `$env:PFP_DATABASE_URL="postgresql+asyncpg://pfp:pfp@localhost:5433/pfp_test"; uv run pytest -q` (тесты ТОЛЬКО на pfp_test, dev-БД pfp не трогать).
+- Сид демо: `uv run python -m app.modules.seed --clients 200 --visits 300` (идемпотентный).
 - Локальный запуск: `docker compose up -d postgres valkey` затем `uvicorn app.main:app --reload`.
 
 ## Культура кода (обязательно)

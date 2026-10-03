@@ -84,3 +84,15 @@ class ScheduleRule(Base):
     weekday: Mapped[int]
     start_min: Mapped[int]  # минут от полуночи, кратно 15
     end_min: Mapped[int]
+
+
+class MasterProfile(Base):
+    """Публичный профиль мастера (имя/специализация/bio). BI-метрики — фаза 2, не здесь."""
+
+    __tablename__ = "master_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    specialization: Mapped[str] = mapped_column(String(255), default="")
+    bio: Mapped[str] = mapped_column(String(1024), default="")

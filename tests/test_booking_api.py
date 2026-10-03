@@ -83,15 +83,16 @@ async def test_booking_flow(ctx: httpx.AsyncClient) -> None:
         "service_id": ids["service"],
         "start_at": slots[0],
     }
-    b1 = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": "k1"})
+    key1, key2 = f"k1-{uuid.uuid4().hex[:8]}", f"k2-{uuid.uuid4().hex[:8]}"
+    b1 = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": key1})
     assert b1.status_code == 201
 
     # повтор с тем же ключом — та же бронь
-    b1d = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": "k1"})
+    b1d = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": key1})
     assert b1d.status_code == 201 and b1d.json()["id"] == b1.json()["id"]
 
     # чужой ключ на тот же слот — 409
-    b2 = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": "k2"})
+    b2 = await c.post("/api/v1/bookings", json=body, headers={**h, "Idempotency-Key": key2})
     assert b2.status_code == 409
 
     # слот пропал из выдачи
