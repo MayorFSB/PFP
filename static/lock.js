@@ -87,11 +87,15 @@ function init() {
       uniform vec2 uMouse;
       varying float vAlpha; varying float vTint; varying float vGloss;
       void main() {
-        // 0-0.3: вуаль -> локон; интро: рассеянное -> форма
+        // 0-0.3: вуаль -> локон
         float morph = smoothstep(0.02, 0.28, uScroll);
         vec3 base = mix(aVeil, aLock, morph);
-        vec3 dispersed = base * 2.6 + vec3(0.0, 1.5, -2.0);
-        vec3 pos = mix(dispersed, base, uIntro);
+        // Интро: стена волос сверху -> маленькая прядь по центру -> вуаль. Медленно.
+        float descend = smoothstep(0.0, 0.7, uIntro);
+        vec3 wall = vec3(base.x * 1.8, 9.0 + fract(aSeed.x * 7.31) * 3.0, base.z - 1.5);
+        vec3 smallLock = aLock * 0.45;
+        float bloom = smoothstep(0.55, 1.0, uIntro);
+        vec3 pos = mix(wall, mix(smallLock, base, bloom), descend);
         // Дыхание: дешёвый шум из синусов
         float ph = aSeed.x;
         pos.x += sin(uTime * 0.9 + ph + pos.y * 0.8) * 0.12;
@@ -182,7 +186,7 @@ function init() {
   let level = 0, frames = 0, fpsAcc = 0, killStreak = 0, disabled = false;
   let fpsCap = 0;
   let last = performance.now(), t0 = last;
-  const introLen = 1.6;
+  const introLen = 3.2; // медленный вход: стена волос -> прядь -> вуаль
 
   function loop(now) {
     requestAnimationFrame(loop);

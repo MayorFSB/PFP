@@ -172,4 +172,3 @@ svg.logo{width:26px;height:26px}
 .modal-card{background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:1.5rem;max-width:380px}
 .modal-card p{color:var(--muted)}
 .modal-actions{display:flex;gap:.7rem;margin-top:1rem}
-.modal-actions .ghost{background:transparent;color:var(--acc);border:1px solid var(--acc);border-radius:.5rem;padding:.5rem 1rem;font-weight:600;cursor:pointer}

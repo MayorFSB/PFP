@@ -69,7 +69,7 @@
         raf = requestAnimationFrame(tick);
       }
     }
-    document.getElementById('cookie-close').addEventListener('click', () => close(true));
+    // Кнопки «Закрыть» нет (только «Принять»); Esc/фон молча возвращают к точке
     modal.addEventListener('click', (e) => { if (e.target === modal) close(true); });
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(true); });
     acceptBtn.addEventListener('click', () => {
