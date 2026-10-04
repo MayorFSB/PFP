@@ -46,6 +46,11 @@ spec:
               value: "postgresql+asyncpg://pfp:$(DB_PASSWORD)@{{ .Release.Name }}-postgres:5432/pfp"
             - name: PFP_VALKEY_URL
               value: "redis://{{ .Release.Name }}-valkey:6379/0"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pfp-secrets
+                  key: gemini-api-key
           readinessProbe:
             httpGet:
               path: /ready

@@ -6,6 +6,7 @@ from app.core.guard import SecurityHeadersMiddleware
 from app.core.metrics import MetricsMiddleware, metrics_endpoint
 from app.modules.auth.router import router as auth_router
 from app.modules.booking.router import router as booking_router
+from app.modules.chat.router import router as chat_router
 from app.modules.payments.router import router as payments_router
 from app.modules.web.router import router as web_router
 
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(booking_router)
     app.include_router(payments_router)
+    app.include_router(chat_router)
     app.include_router(web_router)
 
     @app.get("/health")

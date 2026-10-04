@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pfp-seed
+  namespace: pfp
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: seed
+        image: pfp:latest
+        imagePullPolicy: IfNotPresent
+        command: ["uv", "run", "python", "-m", "app.modules.seed", "--clients", "200", "--visits", "300"]
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: pfp-db
+              key: password
+        - name: PFP_DATABASE_URL
+          value: "postgresql+asyncpg://pfp:$(DB_PASSWORD)@pfp-postgres:5432/pfp"
+        - name: PFP_VALKEY_URL
+          value: "redis://pfp-valkey:6379/0"

@@ -1,0 +1,11 @@
+{# Частичный шаблон истории чата для HTMX #}
+<div id="chat-messages" class="chat-msgs">
+{% for m in messages %}
+<div class="chat-msg {{ 'me' if m.role == 'user' else 'bot' }}">
+    <div class="bubble">{{ m.content }}</div>
+    <small class="time">{{ m.created_at.strftime("%H:%M") }}</small>
+</div>
+{% else %}
+<div class="chat-empty">Напишите первое сообщение…</div>
+{% endfor %}
+</div>

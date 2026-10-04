@@ -9,6 +9,24 @@
 {% if to_next > 0 %}<div class="card"><b>{{ to_next }}</b>до {{ next_threshold }} визитов</div>{% endif %}
 {% if birthday_discount > 0 %}<div class="card"><b>{{ "%.0f"|format(birthday_discount*100) }}%</b>скидка ко дню рождения активна!</div>{% endif %}
 </div>
+
+<!-- Чат с управляющим -->
+<div id="chat-panel" class="chat-panel">
+<div class="chat-header">
+<span>💬 Чат с управляющим</span>
+<span id="chat-toggle">▼</span>
+</div>
+<div id="chat-body" class="chat-body" style="display:none">
+<div id="chat-messages" class="chat-msgs">
+<div class="chat-empty">Напишите первое сообщение…</div>
+</div>
+<form id="chat-form" class="chat-input">
+<input type="text" name="message" placeholder="Сообщение…" required>
+<button type="submit">Отправить</button>
+</form>
+</div>
+</div>
+
 <h2>История</h2>
 <table><tr><th>Когда</th><th>Услуга</th><th>Статус</th><th></th></tr>
 {% for b, s in rows %}
@@ -17,4 +35,7 @@
 {% else %}<tr><td colspan="4">Записей нет</td></tr>
 {% endfor %}
 </table>
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/chat.js?v=1" nonce="{{ nonce }}"></script>
 {% endblock %}
