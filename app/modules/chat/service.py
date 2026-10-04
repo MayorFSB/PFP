@@ -51,6 +51,25 @@ async def get_recent_messages(
     return list(reversed(res.scalars().all()))
 
 
+FALLBACK_REPLY = "Извините, не смог сформулировать ответ. Уточните, пожалуйста."
+
+
+def _parse_reply(raw: str) -> str:
+    """Парсит structured output Gemma. Чистая функция — unit-тестируется без сети/API."""
+    if not raw or not raw.strip():
+        return FALLBACK_REPLY
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return FALLBACK_REPLY
+    if not isinstance(data, dict):
+        return FALLBACK_REPLY
+    reply = data.get("reply")
+    if not isinstance(reply, str) or not reply.strip():
+        return FALLBACK_REPLY
+    return reply.strip()
+
+
 async def save_message(
     session: AsyncSession,
     user_id: str,
@@ -88,7 +107,7 @@ async def generate_reply(
         generation_config={  # type: ignore[arg-type]
             "temperature": 0.3,
             "top_p": 0.8,
-            "max_output_tokens": 200,
+            "max_output_tokens": 500,
             "response_mime_type": "application/json",
             "response_schema": REPLY_SCHEMA,
         },
@@ -96,15 +115,6 @@ async def generate_reply(
 
     try:
         resp = await model.generate_content_async(messages)
-        raw = resp.text or ""
-        if not raw:
-            return "Извините, не смог сформулировать ответ. Уточните, пожалуйста."
-        data = json.loads(raw)
-        reply = data.get("reply", "Извините, не смог сформулировать ответ. Уточните, пожалуйста.")
-        return str(reply)
-    except json.JSONDecodeError:
-        # Если structured output не сработал — фолбэк на обычный текст
-        # resp доступен из try блока
-        return "Извините, не смог сформулировать ответ. Уточните, пожалуйста."
+        return _parse_reply(resp.text or "")
     except Exception as e:  # noqa: BLE001 — внешний AI API: любой сбой → вежливый фолбэк юзеру
         return f"⚠️ Сервис ИИ временно недоступен ({type(e).__name__}). Попробуйте позже или напишите администратору напрямую."
