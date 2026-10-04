@@ -17,7 +17,18 @@ from sqlalchemy import func, select
 
 from app.core.db import SessionLocal
 from app.core.security import hash_password
-from app.modules.models import Booking, Filial, MasterProfile, Role, ScheduleRule, Service, User
+from app.modules.models import (
+    Booking,
+    FamilySubscription,
+    Filial,
+    MasterProfile,
+    Promocode,
+    Role,
+    ScheduleRule,
+    Service,
+    SubscriptionMember,
+    User,
+)
 
 fake = Faker("ru_RU")
 Faker.seed(42)
@@ -128,7 +139,13 @@ async def ensure_masters(filials: list[Filial], n: int = 12) -> list[User]:
                 )
                 s.add(
                     MasterProfile(
-                        user_id=u.id, display_name=name, specialization=random.choice(SPECS)
+                        user_id=u.id,
+                        display_name=name,
+                        specialization=random.choice(SPECS),
+                        # Детерминированный рейтинг 4.6–5.0 из email (демо, не прод)
+                        rating=round(
+                            4.6 + (int(hashlib.md5(email.encode()).hexdigest(), 16) % 5) / 10, 1
+                        ),
                     )
                 )
                 for wd in range(5):
@@ -236,12 +253,64 @@ async def ensure_visits(services: list[Service], masters: list[User], n: int = 3
         return len(rows)
 
 
+async def ensure_promos() -> None:
+    """Демо-промокоды. Идемпотентно по code."""
+    promos = [
+        ("ВСПЫШКА10", 10, 500),
+        ("СЕМЬЯ15", 15, 200),
+        ("ДР15", 15, None),
+    ]
+    async with SessionLocal() as s:
+        for code, pct, max_uses in promos:
+            p = await s.scalar(select(Promocode).where(Promocode.code == code))
+            if p is None:
+                s.add(Promocode(code=code, discount_pct=pct, max_uses=max_uses))
+        await s.commit()
+
+
+async def ensure_family_sub() -> None:
+    """Демо-подписка: client@demo.local владелец + 2 участника, скидка 10%."""
+    async with SessionLocal() as s:
+        owner = await s.scalar(select(User).where(User.email == "client@demo.local"))
+        if owner is None:
+            return
+        sub = await s.scalar(
+            select(FamilySubscription).where(FamilySubscription.owner_id == owner.id)
+        )
+        if sub is None:
+            sub = FamilySubscription(owner_id=owner.id, plan="Семейная", discount_pct=10)
+            s.add(sub)
+            await s.commit()
+            await s.refresh(sub)
+        members = (
+            (
+                await s.execute(
+                    select(User.id).where(User.role == Role.client, User.id != owner.id).limit(2)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for uid in members:
+            m = await s.scalar(
+                select(SubscriptionMember).where(
+                    SubscriptionMember.subscription_id == sub.id,
+                    SubscriptionMember.user_id == uid,
+                )
+            )
+            if m is None:
+                s.add(SubscriptionMember(subscription_id=sub.id, user_id=uid))
+        await s.commit()
+
+
 async def main(clients: int = 200, visits: int = 300) -> None:
     filials = await ensure_filials()
     services = await ensure_services(filials)
     masters = await ensure_masters(filials)
     total_clients = await ensure_clients(clients)
     await ensure_demo_accounts()
+    await ensure_promos()
+    await ensure_family_sub()
     total_visits = await ensure_visits(services, masters, visits)
     print(
         f"filials={len(filials)} services={len(services)} masters={len(masters)} clients={total_clients} visits={total_visits}"

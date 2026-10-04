@@ -2,6 +2,12 @@
 {% block title %}Кабинет мастера{% endblock %}
 {% block content %}
 <h1>Кабинет мастера</h1>
+<div class="stat">
+<div class="card"><b>{{ score.total }}</b>поинтов за 30 дней</div>
+<div class="card"><b>{{ "%.0f"|format(score.profit_rub) }} ₽</b>выручка</div>
+<div class="card"><b>{{ "%.0f"|format(score.done) }}</b>визитов</div>
+<div class="card"><b>{{ score.rating }}</b>рейтинг</div>
+</div>
 
 <!-- Неделя -->
 <h2>Неделя {{ week_label }}</h2>

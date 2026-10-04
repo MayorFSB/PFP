@@ -2,7 +2,19 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,6 +59,10 @@ class Booking(Base):
     service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("services.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="pending")
     idempotency_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    promo_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("promocodes.id"), nullable=True, default=None
+    )
+    discount_kopeks: Mapped[int] = mapped_column(Integer, default=0)
     # Двойная бронь запрещена exclusion constraint (миграция 0003): один мастер — один визит в момент.
 
 
@@ -97,6 +113,7 @@ class MasterProfile(Base):
     display_name: Mapped[str] = mapped_column(String(255))
     specialization: Mapped[str] = mapped_column(String(255), default="")
     bio: Mapped[str] = mapped_column(String(1024), default="")
+    rating: Mapped[float] = mapped_column(Float, default=5.0)  # 1.0–5.0, из отзывов (сид — демо)
 
 
 class ChatMessage(Base):
@@ -116,3 +133,49 @@ class ChatMessage(Base):
     )  # "user" | "assistant" | "manager"
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Promocode(Base):
+    """Промокод: скидка % с окном действия, лимитом использований и привязками."""
+
+    __tablename__ = "promocodes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    discount_pct: Mapped[int] = mapped_column(Integer)  # 1–100
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    filial_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("filials.id"), nullable=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("services.id"), nullable=True)
+    master_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class FamilySubscription(Base):
+    """Семейная подписка: владелец + участники, фиксированная скидка %."""
+
+    __tablename__ = "family_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    plan: Mapped[str] = mapped_column(String(64), default="Семейная")
+    discount_pct: Mapped[int] = mapped_column(Integer, default=10)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class SubscriptionMember(Base):
+    """Участник семейной подписки (владелец входит автоматически, без строки)."""
+
+    __tablename__ = "subscription_members"
+    __table_args__ = (UniqueConstraint("subscription_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subscription_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("family_subscriptions.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )

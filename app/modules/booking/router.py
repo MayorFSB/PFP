@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.modules import perks
 from app.modules.auth.deps import get_current_user
 from app.modules.booking import service
 from app.modules.models import User
@@ -20,6 +21,7 @@ class BookingIn(BaseModel):
     filial_id: uuid.UUID
     service_id: uuid.UUID
     start_at: datetime
+    promo_code: str | None = None
 
 
 @router.get("/slots")
@@ -46,6 +48,8 @@ async def book(
         b = await service.create_booking(
             session, idempotency_key=idempotency_key, client_id=user.id, **body.model_dump()
         )
+    except perks.PromoError as e:
+        raise HTTPException(422, f"bad promo: {e}") from e
     except service.SlotTaken as e:
         raise HTTPException(409, str(e)) from e
     return {"id": str(b.id), "status": b.status}

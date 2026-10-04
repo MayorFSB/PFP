@@ -28,11 +28,11 @@
 </div>
 
 <h2>История</h2>
-<table><tr><th>Когда</th><th>Услуга</th><th>Статус</th><th></th></tr>
+<table><tr><th>Когда</th><th>Услуга</th><th>Скидка</th><th>Статус</th><th></th></tr>
 {% for b, s in rows %}
-<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{{ b.status }}</td>
+<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{% if b.discount_kopeks %}−{{ "%.0f"|format(b.discount_kopeks/100) }} ₽{% else %}—{% endif %}</td><td>{{ b.status }}</td>
 <td>{% if b.status == 'pending' %}<form method="post" action="/cancel/{{ b.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Отменить</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="4">Записей нет</td></tr>
+{% else %}<tr><td colspan="5">Записей нет</td></tr>
 {% endfor %}
 </table>
 {% endblock %}

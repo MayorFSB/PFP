@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
+from app.modules import perks
 from app.modules.auth import service as auth
 from app.modules.auth.deps import ACCESS_COOKIE, get_current_user, require_roles
 from app.modules.booking import service as booking
@@ -342,6 +343,7 @@ async def book_form(
     start_at: str = Form(),
     csrf_token: str = Form(),
     idempotency_key: str = Form(),
+    promo_code: str | None = Form(None),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> RedirectResponse:
@@ -357,7 +359,10 @@ async def book_form(
             filial_id=filial_id,
             service_id=service_id,
             start_at=datetime.fromisoformat(start_at),
+            promo_code=promo_code or None,
         )
+    except perks.PromoError as e:
+        raise HTTPException(422, f"bad promo: {e}") from e
     except booking.SlotTaken as e:
         raise HTTPException(409, str(e)) from e
     return RedirectResponse("/cabinet", status_code=303)
@@ -480,6 +485,7 @@ async def master_cabinet(
             week_label=week_label,
             cal_weeks=cal_weeks,
             month_label=month_label,
+            score=await perks.master_score(session, user.id),
         ),
     )
 
@@ -546,8 +552,11 @@ async def manager(
     filials = (await session.execute(select(Filial).order_by(Filial.name))).scalars().all()
     fid = filial_id or (filials[0].id if filials else None)
     stats = await _stats(session, fid) if fid else {}
+    board = await perks.leaderboard(session, filial_id=fid) if fid else []
     return tpl.TemplateResponse(
-        request, "manager.html", _ctx(request, user=user, filials=filials, fid=fid, stats=stats)
+        request,
+        "manager.html",
+        _ctx(request, user=user, filials=filials, fid=fid, stats=stats, board=board),
     )
 
 

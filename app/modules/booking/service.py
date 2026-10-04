@@ -86,6 +86,7 @@ async def create_booking(
     filial_id: uuid.UUID,
     service_id: uuid.UUID,
     start_at: datetime,
+    promo_code: str | None = None,
 ) -> Booking:
     dup = await session.scalar(select(Booking).where(Booking.idempotency_key == idempotency_key))
     if dup is not None:
@@ -96,6 +97,16 @@ async def create_booking(
     day = start_at.date()
     if start_at.isoformat() not in await day_slots(session, filial_id, master_id, day, service_id):
         raise SlotTaken("slot taken")
+    from app.modules import perks
+
+    pct, promo = await perks.resolve_discount_pct(
+        session,
+        user_id=client_id,
+        promo_code=promo_code,
+        filial_id=filial_id,
+        service_id=service_id,
+        master_id=master_id,
+    )
     booking = Booking(
         filial_id=filial_id,
         master_id=master_id,
@@ -104,7 +115,11 @@ async def create_booking(
         start_at=start_at,
         end_at=start_at + timedelta(minutes=svc.duration_min),
         idempotency_key=idempotency_key,
+        promo_id=promo.id if promo else None,
+        discount_kopeks=svc.price_kopeks * pct // 100,
     )
+    if promo is not None:
+        promo.used_count += 1
     session.add(booking)
     try:
         await session.commit()
