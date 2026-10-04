@@ -161,6 +161,11 @@ svg.logo{width:26px;height:26px}
 }
 
 /* ---- Cookie-точка и модалка ---- */
+.font-display{font-family:'Playfair Display',Georgia,serif;letter-spacing:.01em}
+#scissors{position:fixed;left:0;top:0;z-index:5;pointer-events:none;opacity:0;filter:drop-shadow(0 0 12px rgba(232,179,75,.6))}
+#scissors .blade{transform-box:view-box;transform-origin:60px 60px}
+#scissors .b1{transform:rotate(calc(var(--snip,0)*1deg))}
+#scissors .b2{transform:rotate(calc(var(--snip,0)*-1deg))}
 #cookie-dot{position:fixed;left:0;top:0;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;z-index:300;font-size:22px;line-height:1;background:radial-gradient(circle at 35% 35%, #ffe9b0, var(--acc) 60%, #8a5f14);box-shadow:0 0 18px 4px rgba(232,179,75,.55), 0 0 46px 10px rgba(232,179,75,.25);animation:cookiePulse 2.2s ease-in-out infinite}
 #cookie-dot[hidden]{display:none}
 @keyframes cookiePulse{50%{box-shadow:0 0 26px 8px rgba(232,179,75,.7), 0 0 60px 14px rgba(232,179,75,.3)}}

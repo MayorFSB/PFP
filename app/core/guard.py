@@ -10,7 +10,8 @@ from app.core import cache
 CSP = (
     "default-src 'self'; "
     "script-src 'self' https://unpkg.com 'nonce-{nonce}'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' data:; "
     "connect-src 'self'; "
     "frame-ancestors 'none'; "

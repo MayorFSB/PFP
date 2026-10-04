@@ -35,10 +35,10 @@ function init() {
   const STRANDS = isMobile ? 32 : 72;
   const pPerStrand = Math.ceil(COUNT / STRANDS); // Точек на одну прядь
   for (let i = 0; i < COUNT; i++) {
-    // 1. Вуаль (диффузное облако для сборки/взрыва)
+    // 1. Вуаль-стена на всю ширину (стадия 1: hero)
     const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
     const r = 0.55 + 0.45 * Math.cbrt(Math.random());
-    veil[i * 3 + 0] = r * Math.sin(ph) * Math.cos(th) * 5.0;
+    veil[i * 3 + 0] = r * Math.sin(ph) * Math.cos(th) * 7.5;
     veil[i * 3 + 1] = r * Math.cos(ph) * 5.6;
     veil[i * 3 + 2] = -r * Math.abs(Math.sin(ph)) * 5 - 1;
     // 2. Локон: структурированная голливудская волна (t: 0 корень -> 1 кончик)
@@ -87,8 +87,9 @@ function init() {
       uniform vec2 uMouse;
       varying float vAlpha; varying float vTint; varying float vGloss;
       void main() {
-        // 0-0.3: вуаль -> локон
-        float morph = smoothstep(0.02, 0.28, uScroll);
+        // Стадии по секциям: 0-0.08 стена, 0.08-0.18 сборка (Почему),
+        // 0.15-0.30 мытьё (Услуги), 0.30-0.48 срез (Команда), 0.55-0.75 волна
+        float morph = smoothstep(0.08, 0.18, uScroll);
         vec3 base = mix(aVeil, aLock, morph);
         // Интро: стена волос сверху -> маленькая прядь по центру -> вуаль. Медленно.
         float descend = smoothstep(0.0, 0.7, uIntro);
@@ -109,14 +110,14 @@ function init() {
           float f = (1.0 - dist / R); f *= f;
           pos.xy += normalize(d) * f * 0.9;
         }
-        // Срез 0.32-0.55: линия лезвия сверху вниз, ниже — осыпание
-        float cut = mix(4.5, -4.5, smoothstep(0.32, 0.55, uScroll));
+        // Срез 0.30-0.48: лезвие сверху вниз, ниже — осыпание
+        float cut = mix(4.5, -4.5, smoothstep(0.30, 0.48, uScroll));
         float below = 1.0 - smoothstep(cut - 0.6, cut + 0.4, pos.y);
-        float fall = below * smoothstep(0.32, 0.55, uScroll);
+        float fall = below * smoothstep(0.30, 0.48, uScroll);
         pos.y -= fall * (2.0 + aSeed.y);
         pos.x += fall * sin(ph * 3.0 + uTime * 2.0) * 0.5;
-        // Голливудская волна 0.55+: широкие колебания
-        float wave = smoothstep(0.55, 0.8, uScroll);
+        // Голливудская волна 0.55-0.75: широкие колебания
+        float wave = smoothstep(0.55, 0.75, uScroll);
         float waveOffset = sin(pos.y * 1.6 + uTime * 1.8 + ph) * 0.6 * wave;
         pos.x += waveOffset;
         // Салют: радиальный взрыв с затуханием
@@ -128,11 +129,11 @@ function init() {
         vec3 normal = normalize(vec3(pos.x, 0.0, pos.z + 0.5) + vec3(0.001, 0.0, 0.0));
         vec3 lightDir = normalize(vec3(1.0, 0.5, 1.0));
         float specular = pow(max(dot(normal, lightDir), 0.0), 8.0);
-        // Мокрая полоса (сканирование при мытье)
-        float wetY = (pos.y - mix(4.5, -4.5, smoothstep(0.05, 0.3, uScroll))) * 1.5;
+        // Мокрая полоса 0.15-0.30 (сканирование при мытье на Услугах)
+        float wetY = (pos.y - mix(4.5, -4.5, smoothstep(0.15, 0.3, uScroll))) * 1.5;
         float wet = exp(-wetY * wetY);
         // Финальный глянец
-        vGloss = (specular * wave * 2.2) + (wet * smoothstep(0.05, 0.3, uScroll) * 2.0) + (uSuccess * 1.5);
+        vGloss = (specular * wave * 2.2) + (wet * smoothstep(0.15, 0.3, uScroll) * 2.0) + (uSuccess * 1.5);
         vAlpha = (1.0 - fall * 0.92) * (0.35 + 0.65 * uIntro);
         vTint = aSeed.z;
         vec4 mv = modelViewMatrix * vec4(pos, 1.0);
@@ -225,7 +226,30 @@ function init() {
     uniforms.uIntro.value = Math.min(t / introLen, 1);
     const st = (t - successT0) / 2.5; // салют ~2.5с
     uniforms.uSuccess.value = (st >= 0 && st <= 1) ? Math.sin(st * Math.PI) : 0;
+    driveScissors(uniforms.uScroll.value, t);
     renderer.render(scene, camera);
+  }
+
+  // Ножницы: идут по линии среза шейдера (та же формула), щёлкают лезвиями
+  const scissorsEl = document.getElementById('scissors');
+  const halfH12 = Math.tan(48 * 0.5 * Math.PI / 180) * 12; // глубина z=-1 при camera.z=11
+  function sstep(a, b, x) {
+    const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+    return t * t * (3 - 2 * t);
+  }
+  function driveScissors(scroll, t) {
+    if (!scissorsEl) return;
+    const p = sstep(0.30, 0.48, scroll); // прогресс среза 0..1
+    if (p <= 0 || p >= 1) {
+      scissorsEl.style.opacity = '0';
+      return;
+    }
+    const cutY = 4.5 + (-4.5 - 4.5) * p;
+    const cssY = (0.5 - (cutY / halfH12) / 2) * innerHeight;
+    const cssX = (0.5 + (p - 0.5) * 0.3) * innerWidth;
+    scissorsEl.style.opacity = String(Math.sin(p * Math.PI));
+    scissorsEl.style.transform = `translate(${cssX - 48}px, ${cssY - 48}px)`;
+    scissorsEl.style.setProperty('--snip', (Math.sin(t * 9) * 13 * Math.sin(p * Math.PI)).toFixed(1));
   }
 
   function applyLevel() {
