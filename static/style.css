@@ -159,3 +159,17 @@ svg.logo{width:26px;height:26px}
   .chat-list{display:none}
   .chat-detail[style*="flex"]{display:flex}
 }
+
+/* ---- Cookie-точка и модалка ---- */
+#cookie-dot{position:fixed;left:0;top:0;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;z-index:300;font-size:22px;line-height:1;background:radial-gradient(circle at 35% 35%, #ffe9b0, var(--acc) 60%, #8a5f14);box-shadow:0 0 18px 4px rgba(232,179,75,.55), 0 0 46px 10px rgba(232,179,75,.25);animation:cookiePulse 2.2s ease-in-out infinite}
+#cookie-dot[hidden]{display:none}
+@keyframes cookiePulse{50%{box-shadow:0 0 26px 8px rgba(232,179,75,.7), 0 0 60px 14px rgba(232,179,75,.3)}}
+#cookie-dot .sparkle{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#ffe9b0;box-shadow:0 0 8px 2px rgba(255,233,176,.8);animation:cookieOrbit var(--d,5s) linear infinite}
+#cookie-dot .s1{--r:30px;--d:4s}#cookie-dot .s2{--r:38px;--d:6s;animation-direction:reverse}#cookie-dot .s3{--r:34px;--d:5s}#cookie-dot .s4{--r:42px;--d:7s;animation-direction:reverse}#cookie-dot .s5{--r:28px;--d:3.4s}
+@keyframes cookieOrbit{from{transform:rotate(0deg) translateX(var(--r))}to{transform:rotate(360deg) translateX(var(--r))}}
+#cookie-modal{position:fixed;inset:0;z-index:400;background:rgba(5,4,3,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:1rem}
+#cookie-modal[hidden]{display:none}
+.modal-card{background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:1.5rem;max-width:380px}
+.modal-card p{color:var(--muted)}
+.modal-actions{display:flex;gap:.7rem;margin-top:1rem}
+.modal-actions .ghost{background:transparent;color:var(--acc);border:1px solid var(--acc);border-radius:.5rem;padding:.5rem 1rem;font-weight:600;cursor:pointer}

@@ -8,15 +8,23 @@
 <link rel="stylesheet" href="/static/style.css?v=3">
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 <script src="/static/particles.js?v=1" defer></script>
-<script src="/static/consent.js?v=1" defer></script>
+<script src="/static/consent.js?v=2" defer></script>
 <button id="particles-toggle">Анимация</button>
 <div id="cookie-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:1rem;z-index:200;align-items:center;gap:1rem;flex-wrap:wrap">
   <span style="flex:1;min-width:200px">Мы используем cookies для работы сайта. Продолжая, вы соглашаетесь с <a href="/policy">политикой</a>.</span>
-  <button onclick="this.closest('#cookie-banner').style.display='none';localStorage.setItem('pfp-consent',new Date().toISOString())">Принять</button>
+  <button>Принять</button>
 </div>
-<div id="pd-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:1rem;z-index=200;align-items:center;gap:1rem;flex-wrap:wrap">
+<div id="pd-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:1rem;z-index:200;align-items:center;gap:1rem;flex-wrap:wrap">
   <span style="flex:1;min-width:200px">Нажимая «Принять», вы соглашаетесь с <a href="/policy">обработкой персональных данных</a> (152-ФЗ).</span>
-  <button onclick="this.closest('#pd-banner').style.display='none';localStorage.setItem('pfp-pd-consent',new Date().toISOString())">Принять</button>
+  <button>Принять</button>
+</div>
+<button id="cookie-dot" hidden aria-label="Настройки cookies">🍪<span class="sparkle s1"></span><span class="sparkle s2"></span><span class="sparkle s3"></span><span class="sparkle s4"></span><span class="sparkle s5"></span></button>
+<div id="cookie-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cookie-modal-title">
+    <h2 id="cookie-modal-title">Печеньки 🍪</h2>
+    <p>Мы используем cookies, чтобы сайт работал и запоминал вас. Нажимая «Принять», вы соглашаетесь с <a href="/policy">политикой</a>.</p>
+    <div class="modal-actions"><button id="cookie-accept">Принять</button><button id="cookie-close" class="ghost">Закрыть</button></div>
+  </div>
 </div>
 <!-- Сплэш-заставка: wow-эффект при первом заходе (1.5с), уважает reduced-motion -->
 <style>
