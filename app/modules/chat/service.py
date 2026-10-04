@@ -5,10 +5,10 @@ import os
 from typing import Literal
 
 import google.generativeai as genai
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.models import ChatMessage, Filial, Service, User
+from app.modules.models import Booking, ChatMessage, Filial, Service, User
 
 # Клиент не должен видеть автоматизацию: ассистент — «сотрудник салона»,
 # никаких упоминаний ИИ/модели/нейросети ни в промпте для показа, ни в ответах.
@@ -106,18 +106,27 @@ def _is_blocked(text: str) -> bool:
 
 
 async def _services_hint(session: AsyncSession, limit: int = 60) -> str:
-    """Прайс для промпта, ТОЛЬКО чтение из БД. Модель данные получает, не меняет."""
+    """Прайс для промпта, ТОЛЬКО чтение из БД. Модель данные получает, не меняет.
+
+    Сортировка по популярности (выполненные визиты): ходовые услуги гарантированно
+    попадают в промпт до обрезки на 1500 символов.
+    """
     rows = (
         await session.execute(
-            select(Service.name, Service.price_kopeks)
+            select(Service.name, Service.price_kopeks, func.count(Booking.id))
             .join(Filial, Filial.id == Service.filial_id)
-            .order_by(Service.name)
+            .outerjoin(
+                Booking,
+                (Booking.service_id == Service.id) & (Booking.status.in_(["done", "paid"])),
+            )
+            .group_by(Service.name, Service.price_kopeks)
+            .order_by(func.count(Booking.id).desc(), Service.name)
             .limit(limit)
         )
     ).all()
     if not rows:
         return ""
-    items = [f"{name} — {price // 100} ₽" for name, price in rows]
+    items = [f"{name} — {price // 100} ₽" for name, price, _ in rows]
     hint = "Актуальные услуги (название — цена): " + "; ".join(items) + "."
     return hint[:1500]
 
