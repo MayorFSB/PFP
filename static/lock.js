@@ -12,11 +12,12 @@ function init() {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const off = localStorage.getItem('pfp-particles-off') === '1';
   const isMobile = matchMedia('(max-width:700px)').matches;
-  // ?pfp_strands=N — ручной режим (50..2000), удобно и для отладки стадий
+  // ?pfp_strands=N — ручной режим (50..6000), удобно и для отладки стадий
   const qp = new URLSearchParams(location.search).get('pfp_strands');
-  const STRANDS = qp ? Math.min(Math.max(parseInt(qp, 10) || 600, 50), 2000)
-    : (isMobile ? 600 : 1600);
-  const SEG = isMobile ? 16 : 22; // сегментов на прядь
+  const STRANDS = qp ? Math.min(Math.max(parseInt(qp, 10) || 1200, 50), 6000)
+    : (isMobile ? 1200 : 5000);
+  const SEG = isMobile ? 14 : 22; // сегментов на прядь
+  const LANES = 3; // линий в жгуте: WebGL даёт только 1px, толщину набираем смещением
 
   const renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
@@ -31,11 +32,12 @@ function init() {
 
   // --- Геометрия: непрерывные пряди, S-волна по референсам ---
   const VPS = SEG + 1; // вершин на прядь
-  const NV = STRANDS * VPS;
+  const NV = STRANDS * LANES * VPS;
   const posArr = new Float32Array(NV * 3);
   const tArr = new Float32Array(NV);
+  const laneArr = new Float32Array(NV);
   const seedArr = new Float32Array(NV * 4);
-  const idx = new Uint32Array(STRANDS * SEG * 2);
+  const idx = new Uint32Array(STRANDS * SEG * 2 * LANES);
   function lockPos(s, t, out) {
     const phi = s * 2.39996; // 137.5° — филлотаксис, плотный центр
     const rootR = 0.5 + Math.sqrt(s / STRANDS) * 1.7;
@@ -49,30 +51,36 @@ function init() {
   }
   const tmp = [0, 0, 0];
   for (let s = 0; s < STRANDS; s++) {
-    for (let k = 0; k <= SEG; k++) {
-      const vi = s * VPS + k, t = k / SEG;
-      lockPos(s, t, tmp);
-      posArr[vi * 3 + 0] = tmp[0];
-      posArr[vi * 3 + 1] = tmp[1];
-      posArr[vi * 3 + 2] = tmp[2];
-      tArr[vi] = t;
-      seedArr[vi * 4 + 0] = s * 0.15 + t * 4.0; // фаза по пряди
-      seedArr[vi * 4 + 1] = 0.4 + (1.0 - t * 0.5) * Math.random() * 1.2;
-      seedArr[vi * 4 + 2] = (s / STRANDS) * 0.4 + Math.random() * 0.6;
-      seedArr[vi * 4 + 3] = 1.0 + Math.random() * 1.5;
-      if (k < SEG) {
-        const ii = (s * SEG + k) * 2;
-        idx[ii] = vi;
-        idx[ii + 1] = vi + 1;
+    for (let lane = 0; lane < LANES; lane++) {
+      const lo = lane - (LANES - 1) / 2; // -1, 0, 1: смещение жгута
+      for (let k = 0; k <= SEG; k++) {
+        const vi = (s * LANES + lane) * VPS + k, t = k / SEG;
+        lockPos(s, t, tmp);
+        posArr[vi * 3 + 0] = tmp[0];
+        posArr[vi * 3 + 1] = tmp[1];
+        posArr[vi * 3 + 2] = tmp[2];
+        tArr[vi] = t;
+        laneArr[vi] = lo;
+        seedArr[vi * 4 + 0] = s * 0.15 + t * 4.0; // фаза по пряди
+        seedArr[vi * 4 + 1] = 0.4 + (1.0 - t * 0.5) * Math.random() * 1.2;
+        seedArr[vi * 4 + 2] = (s / STRANDS) * 0.4 + Math.random() * 0.6;
+        seedArr[vi * 4 + 3] = 1.0 + Math.random() * 1.5;
+        if (k < SEG) {
+          const ii = ((s * LANES + lane) * SEG + k) * 2;
+          idx[ii] = vi;
+          idx[ii + 1] = vi + 1;
+        }
       }
     }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
   geo.setAttribute('aT', new THREE.BufferAttribute(tArr, 1));
+  geo.setAttribute('aLane', new THREE.BufferAttribute(laneArr, 1));
   geo.setAttribute('aSeed', new THREE.BufferAttribute(seedArr, 4));
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   const INDEX_TOTAL = idx.length;
+  const STRAND_BLOCK = SEG * 2 * LANES; // индексов на прядь: режем целыми прядями
 
   const uniforms = {
     uTime: { value: 0 },
@@ -86,7 +94,7 @@ function init() {
   const mat = new THREE.ShaderMaterial({
     uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: `
-      attribute float aT; attribute vec4 aSeed;
+      attribute float aT; attribute float aLane; attribute vec4 aSeed;
       uniform float uTime, uScroll, uIntro, uSuccess;
       uniform vec2 uMouse;
       varying float vAlpha; varying float vTint; varying float vGloss;
@@ -96,6 +104,9 @@ function init() {
         // Окна: рост 0-0.85 интро; мытьё 0.15-0.30; срез 0.30-0.44;
         // утюжок 0.46-0.58; волна 0.58-0.72; лак 0.74-0.86; финал 0.86+
         vec3 pos = position;
+        // Жгут: смещение линий для толщины (драйвер даёт только 1px)
+        pos.x += aLane * 0.02;
+        pos.z += aLane * 0.013;
         // Интро: рост сверху вниз из хедера (reveal по линии роста)
         float growY = mix(7.0, -7.0, smoothstep(0.0, 0.85, uIntro));
         float reveal = smoothstep(growY - 0.8, growY + 0.8, pos.y);
@@ -150,7 +161,7 @@ function init() {
         vec3 col = mix(uTintA, uTintB, vTint) * (1.0 + vGloss * 1.6);
         col = mix(col, col * vec3(0.55, 0.42, 0.30), vWet * 0.7); // мокрое затемнение
         col += vec3(0.65, 0.8, 1.0) * vDrop * (0.8 + vGloss);     // капли
-        gl_FragColor = vec4(col, vAlpha * 0.38);
+        gl_FragColor = vec4(col, vAlpha * 0.05);
       }`,
   });
   const lines = new THREE.LineSegments(geo, mat);
@@ -232,10 +243,10 @@ function init() {
 
   function applyLevel() {
     const frac = Math.pow(0.8, level);
-    const shown = Math.max(200, Math.floor(INDEX_TOTAL * frac / 2) * 2); // чётное для сегментов
+    const shown = Math.max(STRAND_BLOCK, Math.floor(INDEX_TOTAL * frac / STRAND_BLOCK) * STRAND_BLOCK);
     geo.setDrawRange(0, shown);
     fpsCap = CAPS[level];
-    setStatus(`3D: ${Math.round(shown / 1000)}k · ${fpsCap || 'max'} fps`);
+    setStatus(`3D: ~${Math.round(shown / 1000)}k · ${fpsCap || 'max'} fps`);
   }
 
   addEventListener('resize', () => {
