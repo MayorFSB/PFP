@@ -2,26 +2,133 @@
   --bg:#0f0e0c; --surface:#1a1815; --card:#211e19; --line:#2e2a24;
   --fg:#f5f1e8; --muted:#a89f91; --acc:#e8b34b; --acc-ink:#1c1503;
   --ok:#7bc96f; --bad:#e26d6d; --radius:.8rem;
+  /* Единственный источник правды для «ширины локона». Используется и
+     .stage, и header.top nav, и .site-foot. Раньше у каждого было своё
+     выражение (36%/430px против 26%/320px), и на 1024–1280 ссылки хедера
+     физически заезжали на локон, потому что канал шапки был уже волос. */
+  --center:min(30%,380px);
+  /* Общая ширина оболочки для main, шапки и футера. Раньше у шапки было
+     max-width:1440px, у main — 1180px, а --center считался от ширины ОКНА,
+     поэтому на 2560px канал локона (870px) оказывался шире самой шапки и
+     пункты меню налезали на пучок. Теперь ширина одна. */
+  --shell:1600px;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
 a{color:var(--acc)}
-header.top{position:sticky;top:0;background:rgba(15,14,12,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10}
-nav{display:flex;gap:1.1rem;align-items:center;max-width:1080px;margin:0 auto;padding:.7rem 1rem}
+/* ---- Хедер: центр кадра свободен ----
+   Шапка не рисует полосу через центр — ни фона, ни границы, ни блюра.
+   Контент живёт у краёв (слева лого+разделы, справа аккаунт), центральная
+   колонка пустая и зарезервирована под 3D-локон. */
+header.top{position:sticky;top:0;z-index:10;background:none;border:0;backdrop-filter:none}
+header.top nav{
+  display:grid;
+  /* Центральная колонка пустая и резервирует канал под локон. */
+  grid-template-columns:1fr var(--center) 1fr;
+  gap:1rem;align-items:center;
+  max-width:var(--shell);margin:0 auto;padding:.8rem clamp(1rem,3vw,2.5rem);
+}
+header.top nav > .sp{display:none}
+/* nowrap обязателен: перенос второй строкой раздувает sticky-шапку и
+   сдвигает всю страницу. На узких экранах вместо переноса — сжатие. */
+.nav-l,.nav-r{display:flex;gap:.9rem;align-items:center;flex-wrap:nowrap;white-space:nowrap}
+/* Разделы и аккаунт прижаты вправо, логотип и Вход — влево. min-width:0 +
+   overflow:hidden — страховка: при множестве ролей (админ видит 4 кабинета)
+   группа обрезается по краю, но никогда не перекрывает локон. Обрезать
+   пункт меню лучше, чем рисовать его поверх арт-объекта. */
+.nav-r{justify-content:flex-end;min-width:0;overflow:hidden}
+.nav-r .who{color:var(--muted);font-size:.78rem;max-width:16ch;overflow:hidden;text-overflow:ellipsis}
+/* Вход — акцентный, стоит слева от разделов. На других страницах (где
+   пользователь уже авторизован) класс не рендерится, поэтому --r вариант
+   в .nav-r нужен только для анонимного состояния без левой группы. */
+.nav-cta{
+  background:var(--acc);color:var(--acc-ink);
+  padding:.28rem .8rem;border-radius:999px;
+  font-weight:700;font-size:.82rem;text-decoration:none;
+}
+.nav-cta:hover{background:#f0c563;color:var(--acc-ink)}
+/* Пустая центральная колонка: резервирует место под локон */
+.nav-gap{display:block}
 nav a.brand{font-weight:800;font-size:1.2rem;color:var(--fg);text-decoration:none;display:flex;gap:.5rem;align-items:center}
 nav a{color:var(--muted);text-decoration:none}nav a:hover{color:var(--fg)}
 nav .sp{flex:1}
 nav button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:.5rem;padding:.35rem .8rem;cursor:pointer}
-main{max-width:1080px;margin:0 auto;padding:1.2rem 1rem 3rem}
-.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:1.5rem;align-items:center;padding:2.5rem 0}
-.hero h1{font-size:2.6rem;margin:.2rem 0;line-height:1.15}
-.hero p{color:var(--muted);font-size:1.1rem}
-.hero .cta{display:flex;gap:.7rem;margin-top:1rem}
+/* Ширина контейнера не должна быть уже локона: --center приходит из JS как
+   доля ширины ОКНА, поэтому боковые колонки считаются от всего экрана. */
+main{max-width:var(--shell);margin:0 auto;padding:0 1rem 3rem}
+
+/* ---- Scroll-stage layout: центральная колонка свободна под 3D-локон ----
+   .stage = 1fr | свободный центр | 1fr. Контент живёт только в боковых
+   колонках (.side--l / .side--r), поэтому локон никогда не перекрывается. */
+.stage{
+  display:grid;
+  grid-template-columns:1fr var(--center) 1fr;
+  gap:2.2rem;
+  align-items:center;
+  min-height:100vh;
+  min-height:100svh;
+  padding:5rem 0;
+  position:relative;
+}
+.stage::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:-1;
+  background:radial-gradient(ellipse 62% 54% at 50% 50%,transparent 0 38%,rgba(15,14,12,.62) 78%,rgba(15,14,12,.9) 100%);
+}
+.side{min-width:0;grid-column:1}
+.side--r{grid-column:3;text-align:right}
+.side--l{grid-column:1}
+.stage h2{font-size:clamp(1.6rem,3.2vw,2.5rem);line-height:1.12;margin:.3rem 0 .7rem;color:var(--fg);text-wrap:balance}
+.stage p{color:var(--muted);max-width:32ch;font-size:1rem}
+.side--r p{margin-left:auto}
+/* Растянутая стадия: больше высоты на тот же диапазон uScroll → анимация
+   идёт медленнее и плавнее при скролле. Ставится секциям, где 3D — главное. */
+.stage--long{min-height:230vh;align-content:center}
+.stage--mid{min-height:160vh;align-content:center}
+@media(max-width:900px){
+  .stage--long,.stage--mid{min-height:auto;padding:4rem 0 5rem}
+  .stage--long .steps-v,.stage--long .list{gap:.7rem}
+}
+.stage .kicker{margin:0 0 .2rem}
+/* Затемнение под текстом, чтобы читалось поверх волос */
+.side>*{position:relative}
+.side>*{text-shadow:0 1px 12px rgba(10,9,8,.95),0 0 3px rgba(10,9,8,.9)}
+.side .card{text-shadow:none}
+
+.ticks{list-style:none;padding:0;margin:1.2rem 0 0;display:flex;flex-direction:column;gap:.7rem}
+.ticks li{display:flex;gap:.7rem;align-items:flex-start;color:var(--muted);font-size:.95rem}
+.side--r .ticks li{flex-direction:row-reverse}
+.ticks b{color:var(--fg);font-weight:600;display:block}
+.ticks i{color:var(--acc);font-style:normal;font-weight:700;flex-shrink:0;min-width:1.4rem}
+
+/* Правая колонка: мастера, услуги, отзывы — вертикальные списки */
+.list{display:flex;flex-direction:column;gap:.55rem;margin-top:1.2rem}
+.list .card{padding:.7rem .9rem;text-align:left}
+.side--r .list .card{text-align:right}
+.row{display:flex;justify-content:space-between;gap:1rem;align-items:baseline}
+.side--r .row{flex-direction:row-reverse}
+.price{color:var(--acc);font-weight:700;white-space:nowrap}
+.rate{color:var(--acc);font-size:.85rem;white-space:nowrap}
+.mini{color:var(--muted);font-size:.85rem;margin-top:.2rem;display:block}
+
+/* Плитка «шаг записи» */
+.steps-v{display:flex;flex-direction:column;gap:.6rem;margin-top:1.2rem}
+.steps-v .card{display:flex;gap:.8rem;align-items:flex-start;padding:.8rem 1rem}
+.steps-v i{color:var(--acc);font-style:normal;font-weight:800;font-size:1.3rem;line-height:1.2;flex-shrink:0}
+.steps-v b{display:block;color:var(--fg)}
+.steps-v small{color:var(--muted)}
+
+/* Промо-плитки и сертификаты */
+.pill{display:inline-block;border:1px solid var(--acc);color:var(--acc);border-radius:999px;padding:.15rem .6rem;font-size:.75rem;font-weight:700;margin-left:.4rem}
+.certs{display:flex;gap:1rem;overflow-x:auto;padding:.5rem 0 1rem;margin-top:1.2rem}
+.certs img{flex-shrink:0;width:260px;height:auto;aspect-ratio:768/512;border-radius:var(--radius);object-fit:cover}
+.certs-note{color:var(--muted);font-size:.9rem}
 .btn{background:var(--acc);color:var(--acc-ink);border:0;border-radius:.6rem;padding:.65rem 1.3rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
 .btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.9rem}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:1rem}
 .card a{color:var(--fg);text-decoration:none}.card small{color:var(--muted)}
+a.card{color:var(--fg);text-decoration:none;display:block}
+a.card:hover{border-color:var(--acc)}
 table{border-collapse:collapse;width:100%;background:var(--card);border-radius:var(--radius);overflow:hidden}
 td,th{border-bottom:1px solid var(--line);padding:.55rem .7rem;text-align:left}
 th{color:var(--muted);font-weight:600;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
@@ -35,54 +142,85 @@ h1,h2{letter-spacing:-.01em}h2{margin-top:2rem;color:var(--acc)}
 .stat .card{min-width:150px;text-align:center}.stat b{font-size:1.7rem;display:block}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 svg.logo{width:26px;height:26px}
-#hero3d{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.85}
+#hero3d{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9}
+#hero3d canvas{display:block;width:100%!important;height:100%!important}
 #particles-toggle{position:fixed;bottom:1rem;right:1rem;z-index:100;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;font-size:.8rem}
-@media(max-width:700px){.hero{grid-template-columns:1fr}.hero h1{font-size:2rem}}
-/* Мобильная навигация */
+
+/* Хэдер появляется только когда локон сформирован (класс ставит lock.js) */
+header.top{transition:transform .55s ease,opacity .55s ease}
+body:not(.nav-ready) header.top{transform:translateY(-105%);opacity:0;pointer-events:none}
+body.nav-ready header.top{transform:none;opacity:1}
+
+@media(max-width:900px){
+  /* Центр занят локоном — контент уходит вниз, локон остаётся видимым сверху */
+  .stage{grid-template-columns:1fr;align-content:end;gap:1rem;padding:3rem 0 4rem}
+  .stage::before{background:linear-gradient(to bottom,transparent 0 34%,rgba(15,14,12,.82) 62%,rgba(15,14,12,.96) 100%)}
+  .side,.side--r{grid-column:1;text-align:left}
+  .side--r p{margin-left:0}
+  .side--r .row,.side--r .ticks li{flex-direction:row}
+  .side--r .list .card,.stage h2,.stage p{max-width:none}
+  .side>*{text-shadow:0 1px 10px rgba(10,9,8,.98),0 0 4px rgba(10,9,8,.95)}
+  #hero3d{opacity:.55}
+}
 @media(max-width:700px){
-  nav{position:fixed;bottom:0;top:auto;width:100%;background:rgba(15,14,12,.95);border-top:1px solid var(--line);padding:.5rem}
-  nav a{font-size:.75rem;flex:1;text-align:center}
+  header.top nav{position:fixed;bottom:0;top:auto;width:100%;background:rgba(15,14,12,.95);border-top:1px solid var(--line);padding:.45rem .4rem;gap:.35rem;overflow-x:auto;scrollbar-width:none;display:flex;max-width:none}
+  header.top nav::-webkit-scrollbar{display:none}
+  /* На мобильном центр освобождать нечем — локон уходит вверх, а навигация
+     становится нижней полосой, поэтому .nav-gap убираем. */
+  header.top .nav-gap{display:none}
+  header.top .nav-l,header.top .nav-r{flex:0 0 auto;gap:.6rem}
+  nav a{font-size:.7rem;flex:0 0 auto;text-align:center}
+  nav a.brand{font-size:.95rem}
   nav .sp{display:none}
+  /* Подвал на мобильном — обычная колонка: резервировать центр не нужно,
+     иначе ссылки уезжают за край. */
+  .site-foot{grid-template-columns:1fr;gap:1.4rem;padding:1.6rem 1rem}
+  .site-foot .nav-gap{display:none}
+  .site-foot .foot-l{max-width:none}
+  .foot-nav{justify-self:stretch;text-align:left;flex-flow:row wrap;gap:.6rem 1rem}
   main{padding-bottom:5rem}
   .slotrow{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}
   .slotrow form{flex-shrink:0}
   button,.btn-sm{min-height:44px;min-width:44px}
 }
 
-/* ---- Новые блоки index ---- */
+/* Узкий desktop: центр сужается, навигация ужимается, но не переносится */
+@media(max-width:1400px){
+
+  .nav-l,.nav-r{gap:.6rem}
+  header.top nav a{font-size:.82rem}
+  header.top nav a.brand{font-size:1.05rem}
+}
+@media(max-width:900px){
+
+  header.top nav a{font-size:.76rem}
+  .nav-r .who{display:none}
+}
+
+/* ---- Общие блоки index ---- */
 .kicker{color:var(--acc);font-size:.9rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:.2rem 0}
-.values h2{margin-top:2.5rem}
 .service .badge{font-size:.7rem;background:var(--acc);color:var(--acc-ink);border-radius:.3rem;padding:.1rem .4rem;margin-left:.5rem}
 .team .person{text-align:center}
 .team .person img{width:100%;height:auto;aspect-ratio:512/768;border-radius:var(--radius);margin-bottom:.6rem;object-fit:cover}
 .team .person .rate{display:block;margin-top:.4rem;color:var(--acc);font-weight:600}
-.reviews{display:flex;flex-direction:column;gap:.6rem}
-.review{display:flex;gap:.7rem;align-items:flex-start}
-.rev-body{flex:1}
-.works img{width:100%;height:auto;aspect-ratio:768/512;border-radius:var(--radius);object-fit:cover}
-.promos .promo{display:flex;flex-direction:column;text-decoration:none}
-.promos .promo img{width:100%;height:auto;aspect-ratio:768/512;border-radius:var(--radius);margin-bottom:.6rem;object-fit:cover}
-.promos .promo b{display:block;margin:.3rem 0}
-.certs{display:flex;gap:1rem;overflow-x:auto;padding:.5rem 0 1rem}
-.certs img{flex-shrink:0;width:320px;height:auto;aspect-ratio:768/512;border-radius:var(--radius);object-fit:cover}
-.certs-note{color:var(--muted);font-size:.9rem}
-.funnel{margin-top:2.5rem}
-.steps{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem}
-.step{flex:1;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:1rem;display:flex;flex-direction:column;align-items:center;text-align:center}
-.step i{font-size:2.5rem;font-weight:800;color:var(--acc);font-style:normal;line-height:1}
-.step b{margin:.5rem 0;font-size:1.1rem}
-.step small{color:var(--muted)}
-.cta-block{background:linear-gradient(135deg,#1a1815,#12100f);border:1px solid var(--line);border-radius:var(--radius);padding:2rem;text-align:center;margin-top:2.5rem}
-.cta-block h2{color:var(--fg);margin-top:0}
-.cta-block p{color:var(--muted);max-width:600px;margin:.5rem auto 1.5rem}
+.review .who{color:var(--acc);font-weight:600;display:block;margin-bottom:.15rem}
 
-/* ---- Footer ---- */
-.site-foot{background:#0a0908;border-top:1px solid var(--line);padding:2rem 1rem;margin-top:3rem}
-.site-foot .legal{color:var(--muted);font-size:.8rem;max-width:1080px;margin:0 auto 1rem}
-.foot-nav{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;max-width:1080px;margin:0 auto 1rem}
+/* ---- Footer: центр кадра свободен ----
+   Та же идея, что в хедере: три колонки 1fr | центр | 1fr, средняя пустая.
+   Реквизиты и контакты уходят влево, навигация и документы — вправо. */
+.site-foot{
+  background:#0a0908;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:1fr var(--center) 1fr;
+  gap:1rem;align-items:start;
+  max-width:var(--shell);margin:3rem auto 0;
+  padding:2rem clamp(1rem,3vw,2.5rem);
+}
+.site-foot .foot-l{display:flex;flex-direction:column;gap:1rem;justify-self:start;max-width:min(42ch,100%)}
+.site-foot .legal{color:var(--muted);font-size:.8rem;line-height:1.7}
+.foot-nav{display:flex;flex-direction:column;gap:.5rem;justify-self:end;text-align:right}
 .foot-nav a{color:var(--muted);font-size:.9rem}
 .foot-nav a:hover{color:var(--acc)}
-.contacts{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;max-width:1080px;margin:0 auto;color:var(--muted);font-size:.85rem}
+.contacts{display:flex;flex-direction:column;gap:.35rem;color:var(--muted);font-size:.85rem}
 .contacts a{color:var(--muted)}
 .contacts a:hover{color:var(--acc)}
 
@@ -160,12 +298,35 @@ svg.logo{width:26px;height:26px}
   .chat-detail[style*="flex"]{display:flex}
 }
 
+/* ---- Баллончик лака (этап фиксации) ---- */
+/* transform-origin выставляет lock.js: поворот должен идти вокруг кончика сопла,
+   иначе translate и rotate считаются от угла элемента и баллончик уезжает
+   из-под струи. */
+#spray{position:fixed;left:0;top:0;z-index:6;pointer-events:none;opacity:0;will-change:transform,opacity}
+#spray svg{overflow:visible;filter:drop-shadow(0 0 22px rgba(232,179,75,.22))}
+#spray .spray-button{transform-box:view-box;transform-origin:80px 44px;
+  transform:translateY(calc(var(--press,0) * 6px))}
+
+/* ---- Утюжок (этап укладки) ---- */
+#iron{position:fixed;left:0;top:0;z-index:6;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:306px 144.5px}
+#iron svg{overflow:visible;filter:drop-shadow(0 0 26px rgba(0,240,255,.20))}
+/* Ось створок — шарнир (380,310) в viewBox 800×600. Углы в разметке не заданы,
+   их двигает --jaw (0 = раскрыто, 1 = сомкнуто). */
+#iron .iron-jaw{transform-box:view-box;transform-origin:380px 310px}
+#iron .iron-upper{transform:rotate(calc((1 - var(--jaw,0)) * -15deg))}
+#iron .iron-lower{transform:rotate(calc((1 - var(--jaw,0)) * 7deg))}
+
 /* ---- Cookie-точка и модалка ---- */
 .font-display{font-family:'Playfair Display',Georgia,serif;letter-spacing:.01em}
-#scissors{position:fixed;left:0;top:0;z-index:5;pointer-events:none;opacity:0;filter:drop-shadow(0 0 12px rgba(232,179,75,.6))}
-#scissors .blade{transform-box:view-box;transform-origin:60px 60px}
-#scissors .b1{transform:rotate(calc(var(--snip,0)*1deg))}
-#scissors .b2{transform:rotate(calc(var(--snip,0)*-1deg))}
+#scissors{position:fixed;left:0;top:0;z-index:5;pointer-events:none;opacity:0;will-change:transform,opacity}
+#scissors svg{overflow:visible;filter:drop-shadow(0 0 22px rgba(232,179,75,.28))}
+/* Ось вращения — винт ножниц (345,275 в viewBox 800×600) */
+#scissors .blade{transform-box:view-box;transform-origin:345px 275px}
+/* Раствор blades. В нарисованном SVG лезвия разведены на ~40°, поэтому
+   закрытие — это поворот каждого лезвия на ~20° к центру, а не мелкое
+   дрожание. snip: 0 = слегка открыто, 1 = полностью сомкнуто. */
+#scissors .b1{transform:rotate(calc(var(--snip,0) * 20deg))}
+#scissors .b2{transform:rotate(calc(var(--snip,0) * -20deg))}
 #cookie-dot{position:fixed;left:0;top:0;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;z-index:300;font-size:22px;line-height:1;background:radial-gradient(circle at 35% 35%, #ffe9b0, var(--acc) 60%, #8a5f14);box-shadow:0 0 18px 4px rgba(232,179,75,.55), 0 0 46px 10px rgba(232,179,75,.25);animation:cookiePulse 2.2s ease-in-out infinite}
 #cookie-dot[hidden]{display:none}
 @keyframes cookiePulse{50%{box-shadow:0 0 26px 8px rgba(232,179,75,.7), 0 0 60px 14px rgba(232,179,75,.3)}}

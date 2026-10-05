@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Парикмахерская{% endblock %}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E%E2%9C%82%EF%B8%8F%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="/static/style.css?v=3">
+<link rel="stylesheet" href="/static/style.css?v=13">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap">
@@ -43,31 +43,48 @@ html{scroll-behavior:smooth}
 <body>
 <div id="splash" aria-hidden="true"><svg class="logo" viewBox="0 0 32 32" fill="none" stroke="#e8b34b" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="24" r="3.4"/><path d="M10.5 10 27 27M10.5 22 27 5"/></svg><span style="font-size:1.6rem;font-weight:800;color:var(--fg)">PFP</span></div>
 <header class="top"><nav>
-<a class="brand" href="/"><svg class="logo" viewBox="0 0 32 32" fill="none" stroke="#e8b34b" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="24" r="3.4"/><path d="M10.5 10 27 27M10.5 22 27 5"/></svg>PFP</a>
-<a href="/">Филиалы</a>
+<div class="nav-l">
+<a class="brand" href="/" title="PFP — на главную"><svg class="logo" viewBox="0 0 32 32" fill="none" stroke="#e8b34b" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="3.4"/><circle cx="8" cy="24" r="3.4"/><path d="M10.5 10 27 27M10.5 22 27 5"/></svg>PFP</a>
+{% if not user %}<a class="nav-cta" href="/login">Войти</a>{% endif %}
+</div>
+<span class="nav-gap" aria-hidden="true"></span>
+<div class="nav-r">
+<a href="/filials">Филиалы</a>
+<a href="/reviews">Отзывы</a>
+<a href="/promos">Акции</a>
+<a href="/certs">Сертификаты</a>
 {% if user %}
 <a href="/cabinet">Кабинет</a>
 {% if user.role in ('master','admin') %}<a href="/master">Мастер</a>{% endif %}
 {% if user.role in ('moderator','admin') %}<a href="/manager">Управление</a>{% endif %}
 {% if user.role == 'admin' %}<a href="/admin">Админ</a>{% endif %}
-<span class="sp"></span><span>{{ user.email }}</span>
+<span class="who">{{ user.email }}</span>
 <form method="post" action="/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ request.cookies.get('pfp_csrf','') }}"><button>Выйти</button></form>
-{% else %}<span class="sp"></span><a href="/login">Войти</a>{% endif %}
+{% else %}{% endif %}
+</div>
 </nav></header>
 <main>{% block content %}{% endblock %}</main>
 <footer class="site-foot">
-<div class="legal">© 2026 ООО «PFP» · ИП Иванов И.И. · ОГРН 1234567890123 · ИНН 1234567890</div>
-<nav class="foot-nav">
-<a href="/policy">Политика конфиденциальности</a>
-<a href="/agreement">Пользовательское соглашение</a>
-<a href="/offer">Публичная оферта</a>
-</nav>
-<div class="contacts">
-<span>📞 +7 (999) 000-00-00</span>
-<span>✉️ admin@pfp.local</span>
-<span>📍 г. Москва, ул. Мира, 1</span>
-<span>🌐 <a href="https://vk.com" target="_blank" rel="noopener">VK</a> · <a href="https://t.me" target="_blank" rel="noopener">Telegram</a> · <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a></span>
+<div class="foot-l">
+  <div class="legal">© 2026 ООО «PFP» · ИП Иванов И.И.<br>ОГРН 1234567890123 · ИНН 1234567890</div>
+  <div class="contacts">
+    <span>📞 +7 (999) 000-00-00</span>
+    <span>✉️ admin@pfp.local</span>
+    <span>📍 г. Москва, ул. Мира, 1</span>
+    <span>🌐 <a href="https://vk.com" target="_blank" rel="noopener">VK</a> · <a href="https://t.me" target="_blank" rel="noopener">Telegram</a> · <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a></span>
+  </div>
 </div>
+<span class="nav-gap" aria-hidden="true"></span>
+<nav class="foot-nav">
+  <a href="/">Главная</a>
+  <a href="/filials">Филиалы</a>
+  <a href="/reviews">Отзывы</a>
+  <a href="/promos">Акции</a>
+  <a href="/certs">Сертификаты</a>
+  <a href="/policy">Политика конфиденциальности</a>
+  <a href="/agreement">Пользовательское соглашение</a>
+  <a href="/offer">Публичная оферта</a>
+</nav>
 </footer>
 {% block extra_scripts %}{% endblock %}
 </body>

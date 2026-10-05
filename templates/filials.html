@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Филиалы — сеть парикмахерских PFP{% endblock %}
+{% block content %}
+<h1 class="font-display">Филиалы</h1>
+<p style="color:var(--muted);max-width:60ch">{{ filials|length }} филиала(ов). Выберите свой и запишитесь онлайн за 3 шага.</p>
+
+{% for f in filials %}
+<section class="card" style="margin:1.2rem 0">
+  <div class="row">
+    <b style="font-size:1.2rem">{{ f.name }}</b>
+    <a class="btn btn-sm" href="/f/{{ f.id }}">Записаться</a>
+  </div>
+  {% if f.address %}<span class="mini">{{ f.address }}</span>{% endif %}
+  <div class="list">
+    {% for s in by_filial.get(f.id, []) %}
+    <div class="card"><span class="row"><span>{{ s.name }}</span><span class="price">{{ "%.0f"|format(s.price_kopeks / 100) }} ₽ · {{ s.duration_min }} мин</span></span></div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

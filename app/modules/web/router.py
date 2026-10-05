@@ -29,6 +29,36 @@ DEMO_ACCOUNTS = {
     "admin": ("admin@demo.local", "/admin"),
 }
 
+# Отзывы вынесены с главной на отдельную страницу /reviews: на главной они
+# были стадией сцены и съедали высоты скролла. Хранятся здесь, чтобы страница
+# отзывов и любые будущие виджеты читали один источник.
+DEMO_REVIEWS = [
+    {
+        "name": "Артём",
+        "text": "Пришёл за 15 минут до закрытия — всё равно записали. Стрижка вспышка — топ!",
+    },
+    {
+        "name": "Мария",
+        "text": "Понравилось, что цена сразу на месте, без доплат. Мастер объяснил, что подойдёт именно мне.",
+    },
+    {
+        "name": "Дмитрий",
+        "text": "Результат — на фото. Скидка ко дню рождения сработала автоматически, приятно.",
+    },
+    {
+        "name": "Ольга",
+        "text": "Ходила три месяца подряд: локон каждый раз одинаково аккуратный, без сюрпризов.",
+    },
+    {
+        "name": "Кирилл",
+        "text": "Записался в ТЦ, доехал за 10 минут. Удобно, что видно свободные слоты сразу.",
+    },
+    {
+        "name": "Анна",
+        "text": "Получила то, о чём договаривались: обсудили уход, показали, что будет с укладкой.",
+    },
+]
+
 
 def _ctx(request: Request, **kw: object) -> dict[str, object]:
     return {"request": request, "nonce": getattr(request.state, "csp_nonce", ""), **kw}
@@ -86,28 +116,41 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)) 
         )
     ).all()
 
-    # Статичные отзывы для демо
-    reviews = [
-        {
-            "name": "Артём",
-            "text": "Пришёл за 15 минут до закрытия — всё равно записали. Стрижка вспышка — топ!",
-        },
-        {
-            "name": "Мария",
-            "text": "Понравилось, что цена сразу на месте, без доплат. Мастер объяснил, что подойдёт именно мне.",
-        },
-        {
-            "name": "Дмитрий",
-            "text": "Результат — на фото. Скидка ко дню рождения сработала автоматически, приятно.",
-        },
-    ]
-
     return tpl.TemplateResponse(
         request,
         "index.html",
-        _ctx(
-            request, filials=filials, user=user, popular=popular, masters=masters, reviews=reviews
-        ),
+        _ctx(request, filials=filials, user=user, popular=popular, masters=masters),
+    )
+
+
+@router.get("/reviews", response_class=HTMLResponse)
+async def reviews_page(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "reviews.html", _ctx(request, reviews=DEMO_REVIEWS))
+
+
+@router.get("/promos", response_class=HTMLResponse)
+async def promos_page(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "promos.html", _ctx(request))
+
+
+@router.get("/certs", response_class=HTMLResponse)
+async def certs_page(request: Request) -> HTMLResponse:
+    return tpl.TemplateResponse(request, "certs.html", _ctx(request))
+
+
+@router.get("/filials", response_class=HTMLResponse)
+async def filials_index(
+    request: Request, session: AsyncSession = Depends(get_session)
+) -> HTMLResponse:
+    rows = (await session.execute(select(Filial).order_by(Filial.name))).scalars().all()
+    services = (
+        (await session.execute(select(Service).order_by(Service.price_kopeks))).scalars().all()
+    )
+    by_filial: dict[uuid.UUID, list[Service]] = {f.id: [] for f in rows}
+    for s in services:
+        by_filial.setdefault(s.filial_id, []).append(s)
+    return tpl.TemplateResponse(
+        request, "filials.html", _ctx(request, filials=rows, by_filial=by_filial)
     )
 
 

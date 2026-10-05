@@ -2,129 +2,375 @@
 {% block title %}Сеть парикмахерских PFP — Стрижка вспышка{% endblock %}
 {% block content %}
 <div id="hero3d" aria-hidden="true"></div>
-<div id="scissors" aria-hidden="true"><svg viewBox="0 0 120 120" width="96" height="96" fill="none" stroke="#e8b34b" stroke-width="5" stroke-linecap="round"><g class="blade b1"><path d="M60 60 L106 40"/><path d="M60 60 L30 94"/><circle cx="25" cy="99" r="11"/></g><g class="blade b2"><path d="M60 60 L106 80"/><path d="M60 60 L30 26"/><circle cx="25" cy="21" r="11"/></g><circle cx="60" cy="60" r="4" fill="#e8b34b" stroke="none"/></svg></div>
+<div id="scissors" aria-hidden="true"><svg viewBox="0 0 800 600" width="300" height="225" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bladeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2f2f2"/>
+      <stop offset="30%" stop-color="#e1e4e6"/>
+      <stop offset="50%" stop-color="#b5bcbe"/>
+      <stop offset="70%" stop-color="#9aa0a2"/>
+      <stop offset="100%" stop-color="#676b6d"/>
+    </linearGradient>
+    <linearGradient id="bladeBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="20%" stop-color="#e8ecef"/>
+      <stop offset="50%" stop-color="#a3a9ac"/>
+      <stop offset="100%" stop-color="#505354"/>
+    </linearGradient>
+    <linearGradient id="cuttingEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="10%" stop-color="#d1d5d8"/>
+      <stop offset="100%" stop-color="#73787a"/>
+    </linearGradient>
+    <linearGradient id="plasticGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3d40"/>
+      <stop offset="40%" stop-color="#282a2b"/>
+      <stop offset="80%" stop-color="#141517"/>
+      <stop offset="100%" stop-color="#0b0c0d"/>
+    </linearGradient>
+    <linearGradient id="plasticHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6b7074" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#3a3d40" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#141517" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rubberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d32f2f"/>
+      <stop offset="40%" stop-color="#b71c1c"/>
+      <stop offset="100%" stop-color="#5f0909"/>
+    </linearGradient>
+    <filter id="scShadow" x="-15%" y="-15%" width="140%" height="140%">
+      <feDropShadow dx="5" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="scInner" x="-20%" y="-20%" width="140%" height="140%">
+      <feComponentTransfer in="SourceAlpha"><feFuncA type="linear" slope="0.7"/></feComponentTransfer>
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feOffset dx="-2" dy="-3"/>
+      <feComposite operator="out" in2="SourceGraphic"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.8 0"/>
+      <feBlend mode="multiply" in2="SourceGraphic"/>
+    </filter>
+    <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="40%" stop-color="#b5bcbe"/>
+      <stop offset="80%" stop-color="#505354"/>
+      <stop offset="100%" stop-color="#212224"/>
+    </linearGradient>
+  </defs>
+
+  <g filter="url(#scShadow)">
+    <!-- Половина A: нижнее лезвие (вверх-вправо) + нижняя ручка (вниз-влево) -->
+    <g class="blade b1">
+      <path d="M 360 280 L 375 255 L 680 140 C 660 165 520 230 410 275 L 390 310 Z" fill="url(#bladeGrad)" stroke="#9aa0a2" stroke-width="0.5"/>
+      <path d="M 410 275 C 520 230 660 165 680 140 C 650 150 510 210 408 253 Z" fill="url(#cuttingEdge)"/>
+      <path d="M 375 255 L 680 140 L 678 138 L 373 252 Z" fill="url(#bladeBevel)"/>
+      <path d="M 360 280 C 340 310 320 315 290 310 L 295 270 C 320 270 345 265 360 280 Z" fill="url(#bladeGrad)"/>
+      <path d="M 300 312 C 260 315 240 330 210 350 C 170 380 175 450 220 475 C 270 500 320 440 325 390 C 328 360 315 330 300 312 Z" fill="url(#plasticGrad)"/>
+      <path d="M 230 380 C 205 400 210 440 240 450 C 270 460 295 420 290 395 C 285 370 255 360 230 380 Z" fill="#0f0e0c" filter="url(#scInner)"/>
+      <path d="M 215 355 C 190 375 185 420 205 450 C 215 460 225 440 220 430 C 205 400 215 385 225 370 C 230 360 220 350 215 355 Z" fill="url(#rubberGrad)"/>
+      <path d="M 270 480 C 300 460 315 410 315 390" fill="none" stroke="url(#plasticHighlight)" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <!-- Половина B: верхнее лезвие (вниз-вправо) + верхняя ручка (вверх-влево) -->
+    <g class="blade b2">
+      <path d="M 360 280 L 390 250 C 500 295 640 360 690 385 C 655 355 380 260 365 245 Z" fill="url(#bladeGrad)" stroke="#9aa0a2" stroke-width="0.5"/>
+      <path d="M 390 250 C 500 295 640 360 690 385 C 650 365 500 305 388 262 Z" fill="url(#cuttingEdge)"/>
+      <path d="M 365 245 L 690 385 L 691 388 L 364 248 Z" fill="url(#bladeBevel)"/>
+      <path d="M 300 250 C 270 230 250 210 215 180 C 175 145 120 175 125 225 C 130 275 190 295 240 280 C 270 270 290 260 300 250 Z" fill="url(#plasticGrad)"/>
+      <path d="M 160 205 C 140 220 150 255 185 255 C 215 255 225 230 210 210 C 195 190 175 195 160 205 Z" fill="#0f0e0c" filter="url(#scInner)"/>
+      <path d="M 200 175 C 160 160 130 190 140 220 C 145 210 160 200 170 210 C 160 190 180 180 195 185 C 205 190 205 180 200 175 Z" fill="url(#rubberGrad)"/>
+      <path d="M 140 240 C 165 275 210 280 235 275" fill="none" stroke="url(#plasticHighlight)" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <g transform="translate(345, 275)">
+      <circle cx="0" cy="0" r="14" fill="#141517" opacity="0.5"/>
+      <circle cx="-1" cy="-1" r="12" fill="url(#boltGrad)" stroke="#424647" stroke-width="0.5"/>
+      <circle cx="-1" cy="-1" r="8" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.7"/>
+      <line x1="-7" y1="-4" x2="5" y2="2" stroke="#212224" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-7" y1="-4" x2="5" y2="2" stroke="#ffffff" stroke-width="0.5" stroke-linecap="round" transform="translate(0, 1)"/>
+    </g>
+  </g>
+</svg></div>
+<div id="spray" aria-hidden="true"><svg viewBox="0 0 160 460" width="150" height="431" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="canBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4a4638"/>
+      <stop offset="18%" stop-color="#a89b78"/>
+      <stop offset="42%" stop-color="#f0e7cf"/>
+      <stop offset="72%" stop-color="#b3a685"/>
+      <stop offset="100%" stop-color="#3d3a2f"/>
+    </linearGradient>
+    <linearGradient id="canCap" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2a2822"/>
+      <stop offset="40%" stop-color="#6e6858"/>
+      <stop offset="100%" stop-color="#1f1e19"/>
+    </linearGradient>
+    <linearGradient id="canLabel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e8b34b"/>
+      <stop offset="100%" stop-color="#b8862a"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="80" cy="446" rx="52" ry="9" fill="#000" opacity="0.35"/>
+  <!-- Корпус -->
+  <path d="M 34,110 L 126,110 L 126,420 Q 126,436 110,436 L 50,436 Q 34,436 34,420 Z" fill="url(#canBody)" stroke="#1f1e19" stroke-width="1.5"/>
+  <!-- Этикетка в цвет акцента -->
+  <rect x="34" y="210" width="92" height="130" fill="url(#canLabel)"/>
+  <rect x="34" y="210" width="92" height="130" fill="none" stroke="#1f1e19" stroke-width="1"/>
+  <text x="80" y="266" font-family="Playfair Display,Georgia,serif" font-size="21" font-weight="700" fill="#1c1503" text-anchor="middle">PFP</text>
+  <text x="80" y="292" font-family="system-ui,sans-serif" font-size="9" letter-spacing="2.4" fill="#3a2a08" text-anchor="middle">ФИКСАЦИЯ</text>
+  <text x="80" y="316" font-family="system-ui,sans-serif" font-size="8" letter-spacing="1.6" fill="#3a2a08" text-anchor="middle">250 ML</text>
+  <!-- Блик -->
+  <rect x="46" y="120" width="9" height="300" rx="4.5" fill="#fff" opacity="0.28"/>
+  <!-- Плечо, горловина, колпачок -->
+  <path d="M 34,110 Q 36,86 62,74 L 98,74 Q 124,86 126,110 Z" fill="url(#canCap)"/>
+  <rect x="66" y="56" width="28" height="20" fill="url(#canCap)" stroke="#1f1e19" stroke-width="1"/>
+  <rect x="60" y="44" width="40" height="15" rx="3" fill="#2a2822" stroke="#1f1e19" stroke-width="1"/>
+  <!-- Сопло -->
+  <circle cx="70" cy="51" r="5.5" fill="#0d0c0a" stroke="#e8b34b" stroke-width="1.2"/>
+  <!-- Кнопка-распылитель: --press двигает её вдоль оси баллончика -->
+  <g class="spray-button">
+    <rect x="56" y="14" width="48" height="30" rx="7" fill="url(#canCap)" stroke="#1f1e19" stroke-width="1.5"/>
+    <rect x="62" y="20" width="36" height="6" rx="3" fill="#fff" opacity="0.16"/>
+  </g>
+</svg></div>
+
+<div id="iron" aria-hidden="true"><svg viewBox="0 0 800 600" width="340" height="255" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a3d52"/>
+      <stop offset="30%" stop-color="#1e202c"/>
+      <stop offset="70%" stop-color="#14151f"/>
+      <stop offset="100%" stop-color="#2d2f3f"/>
+    </linearGradient>
+    <linearGradient id="plateGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f0ff"/>
+      <stop offset="50%" stop-color="#7000ff"/>
+      <stop offset="100%" stop-color="#ff007b"/>
+    </linearGradient>
+    <linearGradient id="darkMatte" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16171d"/>
+      <stop offset="100%" stop-color="#0b0c0e"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(50, 40)">
+    <g id="iron-base">
+      <!-- Провод -->
+      <path d="M 105,378 C 80,395 50,385 15,425" fill="none" stroke="#16171d" stroke-width="6"/>
+      <path d="M 100,380 C 60,400 30,370 10,420" fill="none" stroke="#00f0ff" stroke-width="2.5" filter="url(#neonGlow)" opacity="0.7"/>
+      <!-- Крепление провода -->
+      <g>
+        <path d="M 100,370 L 115,385 L 105,395 L 90,380 Z" fill="url(#darkMatte)"/>
+        <ellipse cx="108" cy="383" rx="4" ry="8" fill="#00f0ff" transform="rotate(-30, 108, 383)" filter="url(#neonGlow)"/>
+      </g>
+      <!-- Нижняя часть ручки -->
+      <path d="M 110,370 L 280,310 C 310,300 330,295 350,300 L 400,315 L 390,340 L 320,345 C 280,350 200,380 140,390 Z" fill="url(#bodyGrad)" stroke="#111" stroke-width="1.5"/>
+      <!-- Панель управления -->
+      <path d="M 220,323 L 310,293 C 320,290 330,292 335,297 L 340,305 C 342,310 338,315 330,318 L 240,348 C 230,351 220,348 215,343 L 212,335 C 210,330 214,325 220,323 Z" fill="#090a0f" stroke="#3a3d52" stroke-width="1"/>
+      <!-- Индикатор температуры -->
+      <path d="M 240,326 L 295,308" stroke="url(#plateGrad)" stroke-width="3" stroke-linecap="round" filter="url(#neonGlow)"/>
+      <circle cx="315" cy="302" r="3" fill="#00f0ff" filter="url(#neonGlow)"/>
+    </g>
+
+    <g id="iron-hinge">
+      <circle cx="380" cy="310" r="22" fill="url(#darkMatte)" stroke="#3a3d52" stroke-width="2"/>
+      <circle cx="380" cy="310" r="14" fill="#0a0b10"/>
+      <circle cx="380" cy="310" r="8" fill="none" stroke="#00f0ff" stroke-width="2" filter="url(#neonGlow)"/>
+    </g>
+
+    <!-- Створки. Углы в атрибутах transform ЗАБЫТЫ: их двигает CSS через --jaw -->
+    <g class="iron-jaw iron-upper">
+      <path d="M 400,298 L 650,220 C 660,217 670,222 675,230 L 680,240 C 683,248 678,255 670,258 L 415,317 Z" fill="url(#plateGrad)" opacity="0.9" filter="url(#neonGlow)"/>
+      <path d="M 375,290 C 375,290 410,270 440,260 L 670,195 C 690,190 710,205 715,225 L 720,235 C 725,255 710,270 690,275 L 410,323 Z" fill="url(#bodyGrad)" stroke="#111" stroke-width="1.5"/>
+      <path d="M 480,250 L 640,205 C 645,203 650,207 648,212 C 647,215 643,218 638,220 L 478,265 C 473,267 468,263 470,258 C 471,255 475,252 480,250 Z" fill="#0a0b10"/>
+      <path d="M 490,251 L 630,211" stroke="#ff007b" stroke-width="1.5" opacity="0.7" filter="url(#neonGlow)"/>
+    </g>
+    <g class="iron-jaw iron-lower">
+      <path d="M 412,316 L 668,360 C 678,362 685,372 682,380 L 678,390 C 675,398 665,402 655,400 L 400,324 Z" fill="url(#plateGrad)" opacity="0.9" filter="url(#neonGlow)"/>
+      <path d="M 405,310 L 685,355 C 705,358 720,375 715,395 L 710,405 C 705,425 685,435 665,430 L 430,365 C 400,355 375,330 375,330 Z" fill="url(#bodyGrad)" stroke="#111" stroke-width="1.5"/>
+      <path d="M 450,353 L 640,383" stroke="#00f0ff" stroke-width="2" stroke-linecap="round" opacity="0.8" filter="url(#neonGlow)"/>
+    </g>
+
+    <!-- Ионное поле между створками: гало подсветки, opacity двигает JS -->
+    <g id="iron-field" opacity="0">
+      <path d="M 450,300 Q 550,280 650,320" fill="none" stroke="#00f0ff" stroke-width="3" stroke-dasharray="5 10" filter="url(#neonGlow)"/>
+      <path d="M 470,320 Q 560,310 630,340" fill="none" stroke="#ff007b" stroke-width="2" stroke-dasharray="2 8" filter="url(#neonGlow)"/>
+    </g>
+  </g>
+</svg></div>
 <script type="importmap" nonce="{{ nonce }}">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
-<script type="module" nonce="{{ nonce }}" src="/static/lock.js?v=1"></script>
+<script type="module" nonce="{{ nonce }}" src="/static/lock.js?v=54"></script>
 
-<!-- 3.1 Бренд + ХИРО -->
-<section class="hero">
-<div>
-<p class="kicker font-display">PFP — сеть парикмахерских</p>
-<h1 class="font-display">Стрижка вспышка</h1>
-<p>Быстро, стильно и без очереди. 3 филиала, онлайн-запись за 3 клика, мастера с рейтингом.</p>
-<div class="cta"><a class="btn" href="#filials">Выбрать филиал</a><a class="btn ghost" href="/login">Войти</a></div>
-</div>
-<div class="card">
-<svg viewBox="0 0 200 120" width="100%" role="img" aria-label="Барбер-иллюстрация">
-<rect x="10" y="10" width="180" height="100" rx="14" fill="#1a1815" stroke="#2e2a24"/>
-<circle cx="70" cy="55" r="22" fill="none" stroke="#e8b34b" stroke-width="5"/>
-<path d="M100 40h70M100 55h55M100 70h65" stroke="#a89f91" stroke-width="6" stroke-linecap="round"/>
-<circle cx="160" cy="88" r="7" fill="#7bc96f"/>
-</svg>
-</div>
+{# Центральная колонка каждой секции пуста — там живёт локон. Текст только по сторонам. #}
+
+{# 0. Вход: чёрный сайт, сверху вниз идут одиночные линии #}
+<section class="stage" id="intro" data-stage="intro">
+  <div class="side side--l">
+    <p class="kicker">PFP — сеть парикмахерских</p>
+    <h1 class="font-display">Стрижка вспышка</h1>
+    <p>Прокрутите вниз — из отдельных прядей соберётся локон.</p>
+  </div>
 </section>
 
-<!-- Филиалы (точка входа в воронку) -->
-<h2 id="filials">Филиалы</h2>
-<div class="grid">
-{% for f in filials %}
-<div class="card"><a href="/f/{{ f.id }}"><strong>{{ f.name }}</strong><br><small>{{ f.address }}</small></a></div>
-{% else %}<div class="card">Пока пусто — запустите сид: <code>python -m app.modules.seed</code></div>
-{% endfor %}
-</div>
-
-<!-- 3.2 Ценность для клиентов -->
-<section class="values">
-<h2>Почему выбирают нас</h2>
-<div class="grid">
-<div class="card"><b>0 очереди</b><br><small>Онлайн-слоты: приходишь ровно к своему времени</small></div>
-<div class="card"><b>Фикс-цены</b><br><small>Цена в прайсе = цена в кресле. Без сюрпризов</small></div>
-<div class="card"><b>Мастера с рейтингом</b><br><small>Реальные отзывы и рейтинг каждого мастера</small></div>
-<div class="card"><b>Скидки постоянникам</b><br><small>Лояльность до 10% + 15% ко дню рождения</small></div>
-</div>
+{# 1. Пряди сплетаются в локон #}
+<section class="stage stage--mid" id="curl" data-stage="curl">
+  <div class="side side--r">
+    <p class="kicker">Шаг 1</p>
+    <h2 class="font-display">Локон собирается из прядей</h2>
+    <p>Так же и приём: сначала диагностика и план, потом аккуратная работа.</p>
+    <ul class="ticks">
+      <li><i>01</i><span><b>Диагностика</b>Тип волос, структура, плотность.</span></li>
+      <li><i>02</i><span><b>План укладки</b>Какой локон получится из вашей длины.</span></li>
+      <li><i>03</i><span><b>Пробная прядь</b>Проверяем форму до всей головы.</span></li>
+    </ul>
+  </div>
 </section>
 
-<!-- 3.3 Популярные услуги -->
-<h2 id="services">Популярные услуги</h2>
-<div class="grid">
-{% for s, cnt in popular %}
-<div class="card service">
-<strong>{{ s.name }}</strong>
-<small>{{ s.duration_min }} мин · {{ "%.0f"|format(s.price_kopeks/100) }} ₽</small>
-{% if cnt %}<span class="badge">{{ cnt }} записей</span>{% endif %}
-</div>
-{% else %}
-<div class="card">Пока нет услуг — запустите сид</div>
-{% endfor %}
-</div>
+{# 2. Хэдер появляется (класс .nav-ready ставит lock.js) #}
 
-<!-- 3.4 Команда мастеров + отзывы -->
-<h2 id="team">Наша команда</h2>
-<div class="grid team">
-{% for u, p in masters %}
-<div class="card person">
-<img src="/static/img/team-{{ '%02d'|format(loop.index) }}.svg" alt="Фото мастера {{ p.display_name }}" width="512" height="768" loading="lazy">
-<strong>{{ p.display_name }}</strong>
-<small>{{ p.specialization }}</small>
-<span class="rate">★ 4.9</span>
-</div>
-{% endfor %}
-</div>
-
-<h3>Отзывы</h3>
-<div class="reviews">
-{% for r in reviews %}
-<div class="card review">
-<img src="/static/img/face-{{ '%02d'|format(loop.index) }}.svg" alt="Аватар {{ r.name }}" width="48" height="48" loading="lazy" style="border-radius:50%;width:48px;height:48px;object-fit:cover">
-<div class="rev-body"><b>{{ r.name }}</b><br><small>{{ r.text }}</small></div>
-</div>
-{% endfor %}
-</div>
-
-<!-- 3.5 Работы: до и после -->
-<h2 id="works">Работы: до и после</h2>
-<div class="grid works">
-{% for i in range(1,5) %}
-<div class="card"><img src="/static/img/result-{{ '%02d'|format(i) }}.svg" alt="Результат до и после" width="768" height="512" loading="lazy"></div>
-{% endfor %}
-</div>
-
-<!-- 3.6 Акции и скидки -->
-<h2 id="promo">Акции и скидки</h2>
-<div class="grid promos">
-<a class="card promo" href="#filials">
-<img src="/static/img/promo-01.svg" alt="Акция: Стрижка вспышка" width="768" height="512" loading="lazy">
-<b>Стрижка вспышка — 600 ₽</b><small>Экспресс-стрижка за 15 минут. Без записи — по очереди</small>
-</a>
-<a class="card promo" href="/register">
-<img src="/static/img/promo-02.svg" alt="Скидка ко дню рождения" width="768" height="512" loading="lazy">
-<b>−15% ко дню рождения</b><small>Скидка ±7 дней от даты рождения. Укажи дату в профиле</small>
-</a>
-</div>
-
-<!-- 3.7 Дипломы и награды -->
-<h2>Дипломы, награды и мастер-классы</h2>
-<div class="certs">
-{% for i in range(1,5) %}
-<img src="/static/img/cert-{{ '%02d'|format(i) }}.svg" alt="Диплом {{ i }}" width="768" height="512" loading="lazy">
-{% endfor %}
-</div>
-<p class="certs-note">Наши мастера регулярно проходят обучение и выступают на мастер-классах: техника фейд, работа с текстурой, колористика премиум-сегмента.</p>
-
-<!-- 3.8 Воронка: как записаться -->
-<section class="funnel">
-<h2>Запись за 3 шага</h2>
-<div class="steps">
-<div class="step"><i>1</i><b>Выберите филиал</b><small>Удобный адрес из трёх</small></div>
-<div class="step"><i>2</i><b>Выберите мастера и время</b><small>Живые слоты в расписании</small></div>
-<div class="step"><i>3</i><b>Подтвердите</b><small>Запись зафиксирована, напомним перед визитом</small></div>
-</div>
+{# 3. Почему выбирают нас #}
+<section class="stage" id="why" data-stage="why">
+  <div class="side side--l">
+    <p class="kicker">Почему мы</p>
+    <h2 class="font-display">Без очередей и без сюрпризов</h2>
+    <ul class="ticks">
+      <li><i>01</i><span><b>{{ filials|length }} филиала в центре</b>Один стандарт качества и одна сеть цен.</span></li>
+      <li><i>02</i><span><b>Онлайн-запись за 3 шага</b>Слот на выбор, без звонков и переписок.</span></li>
+      <li><i>03</i><span><b>Мастера с рейтингом</b>Рейтинг и отзывы видны до записи.</span></li>
+      <li><i>04</i><span><b>Цена сразу на месте</b>Никаких доплат в конце.</span></li>
+    </ul>
+  </div>
 </section>
 
-<!-- 3.9 CTA блок -->
-<section class="cta-block">
-<h2>Готов записаться?</h2>
-<p>Займёт меньше минуты. Выберите филиал и время — остальное мы берём на себя.</p>
-<div class="cta"><a class="btn" href="#filials">Выбрать филиал</a><a class="btn ghost" href="/register">Зарегистрироваться</a></div>
+{# 4. Процесс мытья #}
+<section class="stage stage--long" id="wash" data-stage="wash">
+  <div class="side side--r">
+    <p class="kicker">Процесс · 01</p>
+    <h2 class="font-display">Мытьё</h2>
+    <ul class="ticks">
+      <li><i>—</i><span><b>Диагностика</b>Тип волос, структура, желаемый результат.</span></li>
+      <li><i>—</i><span><b>Шампунь по типу</b>Подбираем по структуре, а не по привычке.</span></li>
+      <li><i>—</i><span><b>Нанесение состава</b>Держим время точно по препарату.</span></li>
+      <li><i>—</i><span><b>Выдержка под шапочкой</b>Тёплая баня — состав работает глубже.</span></li>
+      <li><i>—</i><span><b>Смывание</b>Два прохода, чтобы не оставить плёнку.</span></li>
+      <li><i>—</i><span><b>Увлажнение</b>Без него любая завивка рассыпается.</span></li>
+    </ul>
+  </div>
 </section>
+
+{# 5. Популярные услуги #}
+<section class="stage" id="services" data-stage="services">
+  <div class="side side--l">
+    <p class="kicker">Популярные услуги</p>
+    <h2 class="font-display">Что берут чаще всего</h2>
+    <div class="list">
+      {% for service, done in popular %}
+      <a class="card" href="/filials">
+        <span class="row"><b>{{ service.name }}</b><span class="price">{{ "%.0f"|format(service.price_kopeks / 100) }} ₽</span></span>
+        <span class="mini">{{ service.duration_min }} мин{% if done %} · выполнено {{ done }}{% endif %}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <p style="margin-top:1rem"><a href="/filials">Все услуги и филиалы →</a></p>
+  </div>
+</section>
+
+{# 6. Стрижка настоящими ножницами #}
+<section class="stage stage--long" id="cut" data-stage="cut">
+  <div class="side side--r">
+    <p class="kicker">Процесс · 02</p>
+    <h2 class="font-display">Стрижка ножницами</h2>
+    <p>Режем настоящими ножницами, а не машинкой: срезанные пряди осыпаются, видно качество линии.</p>
+    <ul class="ticks">
+      <li><i>✂</i><span><b>Только ножницы</b>Никакой машинки на виски и уши.</span></li>
+      <li><i>✂</i><span><b>Сухой срез</b>Чистая линия — видно каждую прядь.</span></li>
+      <li><i>✂</i><span><b>Проба ножниц</b>Приёмка инструмента перед работой.</span></li>
+      <li><i>✂</i><span><b>Уход за полотном</b>Точим после каждого клиента.</span></li>
+      <li><i>✂</i><span><b>Проверка формы</b>Сушим и смотрим в движении.</span></li>
+    </ul>
+  </div>
+</section>
+
+{# 7. Наша команда #}
+<section class="stage" id="team" data-stage="team">
+  <div class="side side--l">
+    <p class="kicker">Команда</p>
+    <h2 class="font-display">Наши мастера</h2>
+    <div class="list">
+      {% for u, profile in masters %}
+      <div class="card">
+        <span class="row"><b>{{ profile.display_name }}</b><span class="rate">{{ "%.1f"|format(profile.rating) }} ★</span></span>
+        <span class="mini">{{ profile.specialization or 'Парикмахер' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# 8. Процесс укладки #}
+<section class="stage stage--long" id="style" data-stage="style">
+  <div class="side side--r">
+    <p class="kicker">Процесс · 03</p>
+    <h2 class="font-display">Укладка</h2>
+    <p>Утюжок, плойка или фен — зависит от того, какой локон вы хотите носить.</p>
+    <ul class="ticks">
+      <li><i>01</i><span><b>Подбор инструмента</b>Диаметр под длину и толщину пряди.</span></li>
+      <li><i>02</i><span><b>Термозащита</b>Спальянга перед нагревом.</span></li>
+      <li><i>03</i><span><b>Завивка</b>Прядь за прядью, сверху вниз.</span></li>
+      <li><i>04</i><span><b>Остывание</b>Не трогаем, пока волос не остыли.</span></li>
+      <li><i>05</i><span><b>Раскручивание</b>Пальцами или расчёской — по желанию.</span></li>
+      <li><i>06</i><span><b>Фиксация</b>Лак без белёсого налёта.</span></li>
+      <li><i>07</i><span><b>Уход</b>Масло или несмываемый уход на кончики.</span></li>
+    </ul>
+  </div>
+</section>
+
+{# 9. Отзывы и работы #}
+<section class="stage stage--long" id="fix" data-stage="fix">
+  <div class="side side--l">
+    <p class="kicker">Процесс · 04</p>
+    <h2 class="font-display">Фиксация лаком</h2>
+    <p>Фиксируем форму лаком без белёсого налёта — локон держит форму до вечера.</p>
+    <ul class="ticks">
+      <li><i>01</i><span><b>Пробный распыл</b>Сначала на ладонь, не на волосы.</span></li>
+      <li><i>02</i><span><b>Расстояние 20 см</b>Ближе — налёт, дальше — туман.</span></li>
+      <li><i>03</i><span><b>Слоями</b>От корней к кончикам, без пропусков.</span></li>
+      <li><i>04</i><span><b>Без передержки</b>Иначе волосы слипаются.</span></li>
+    </ul>
+  </div>
+</section>
+
+{# 10. Результат: форма зафиксирована, блик идёт по волнам, мерцают блестки #}
+<section class="stage stage--long" id="result" data-stage="result">
+  <div class="side side--l">
+    <p class="kicker">Результат</p>
+    <h2 class="font-display">Локон, который держит</h2>
+    <p>Финальная завивка и лак без белого налёта: волосы держат форму до вечера,
+       а блик скользит по каждой волне.</p>
+    <ul class="ticks">
+      <li><i>✓</i><span><b>Без передержки</b>Пряди склеиваются ровно.</span></li>
+      <li><i>✓</i><span><b>Глянец без плёнки</b>Финиш, а не лаковая маска.</span></li>
+    </ul>
+  </div>
+</section>
+{# 11. Запись — последняя, естественно проявляется в конце #}
+<section class="stage" id="book" data-stage="book">
+  <div class="side side--r">
+    <p class="kicker">Запись</p>
+    <h2 class="font-display">Три шага до стрижки</h2>
+    <div class="steps-v">
+      <div class="card"><i>1</i><span><b>Филиал</b><small>Выбираете район.</small></span></div>
+      <div class="card"><i>2</i><span><b>Мастер и время</b><small>Свободные слоты в календаре.</small></span></div>
+      <div class="card"><i>3</i><span><b>Подтверждение</b><small>Занимает меньше минуты.</small></span></div>
+    </div>
+    <div class="cta" style="margin-top:1.2rem;justify-content:flex-end">
+      <a class="btn" href="/filials">Записаться</a>
+    </div>
+  </div>
+</section>
+
+{# Сертификаты — цель из хэдера #}
 {% endblock %}
