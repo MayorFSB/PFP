@@ -14,7 +14,7 @@
   --shell:1600px;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Golos Text","Segoe UI",system-ui,sans-serif}
 a{color:var(--acc)}
 /* ---- Хедер: центр кадра свободен ----
    Шапка не рисует полосу через центр — ни фона, ни границы, ни блюра.
@@ -55,7 +55,7 @@ nav .sp{flex:1}
 nav button{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:.5rem;padding:.35rem .8rem;cursor:pointer}
 /* Ширина контейнера не должна быть уже локона: --center приходит из JS как
    доля ширины ОКНА, поэтому боковые колонки считаются от всего экрана. */
-main{max-width:var(--shell);margin:0 auto;padding:0 1rem 3rem}
+main{position:relative;z-index:2;max-width:var(--shell);margin:0 auto;padding:0 1rem 3rem}
 
 /* ---- Scroll-stage layout: центральная колонка свободна под 3D-локон ----
    .stage = 1fr | свободный центр | 1fr. Контент живёт только в боковых
@@ -78,7 +78,10 @@ main{max-width:var(--shell);margin:0 auto;padding:0 1rem 3rem}
 .side--r{grid-column:3;text-align:right}
 .side--l{grid-column:1}
 .stage h2{font-size:clamp(1.6rem,3.2vw,2.5rem);line-height:1.12;margin:.3rem 0 .7rem;color:var(--fg);text-wrap:balance}
-.stage p{color:var(--muted);max-width:32ch;font-size:1rem}
+/* :not(.kicker) обязателен: .kicker — это <p>, и без исключения
+   .stage p (специфичность 0,1,1) перебивал .kicker (0,1,0) по font-size,
+   каким бы позже ни стояло правило. Маргиналия получалась 16px вместо .72rem. */
+.stage p:not(.kicker){color:var(--muted);max-width:32ch;font-size:1rem}
 .side--r p{margin-left:auto}
 /* Растянутая стадия: больше высоты на тот же диапазон uScroll → анимация
    идёт медленнее и плавнее при скролле. Ставится секциям, где 3D — главное. */
@@ -90,8 +93,7 @@ main{max-width:var(--shell);margin:0 auto;padding:0 1rem 3rem}
 }
 .stage .kicker{margin:0 0 .2rem}
 /* Затемнение под текстом, чтобы читалось поверх волос */
-.side>*{position:relative}
-.side>*{text-shadow:0 1px 12px rgba(10,9,8,.95),0 0 3px rgba(10,9,8,.9)}
+.side>*{position:relative;text-shadow:0 1px 12px rgba(10,9,8,.95),0 0 3px rgba(10,9,8,.9)}
 .side .card{text-shadow:none}
 
 .ticks{list-style:none;padding:0;margin:1.2rem 0 0;display:flex;flex-direction:column;gap:.7rem}
@@ -142,9 +144,24 @@ h1,h2{letter-spacing:-.01em}h2{margin-top:2rem;color:var(--acc)}
 .stat .card{min-width:150px;text-align:center}.stat b{font-size:1.7rem;display:block}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 svg.logo{width:26px;height:26px}
-#hero3d{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9}
+
+/* ---- Слои: канвас 0 → инструменты 1 → контент 2 → header 10 ----
+   Инструменты (ножницы, баллончик, утюжок) раньше стояли на z-index 5–6,
+   то есть ВЫШЕ контента, и SVG перекрывал текст боковых секций. Теперь они
+   в z-index 1: остаются видимыми (живут в центральном канале, где текста
+   нет), но текст при любом совпадении оказывается сверху. */
+#hero3d   { position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9 }
+#scissors { z-index:1; }
+#spray    { z-index:1; }
+#iron     { z-index:1; }
+main       { z-index:2; }   /* position:relative в правиле выше */
+.site-foot { z-index:2; }
+header.top { z-index:10; }
+
 #hero3d canvas{display:block;width:100%!important;height:100%!important}
-#particles-toggle{position:fixed;bottom:1rem;right:1rem;z-index:100;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;font-size:.8rem}
+/* z-index 210 — выше баннеров (200), иначе cookie-баннер, растянутый на всю
+   ширину снизу, накрывал кнопку и она становилась некликабельной. */
+#particles-toggle{position:fixed;bottom:1rem;right:1rem;z-index:210;background:var(--card);color:var(--muted);border:1px solid var(--line);border-radius:.5rem;padding:.4rem .8rem;cursor:pointer;font-size:.8rem}
 
 /* Хэдер появляется только когда локон сформирован (класс ставит lock.js) */
 header.top{transition:transform .55s ease,opacity .55s ease}
@@ -158,7 +175,7 @@ body.nav-ready header.top{transform:none;opacity:1}
   .side,.side--r{grid-column:1;text-align:left}
   .side--r p{margin-left:0}
   .side--r .row,.side--r .ticks li{flex-direction:row}
-  .side--r .list .card,.stage h2,.stage p{max-width:none}
+  .side--r .list .card,.stage h2,.stage p:not(.kicker){max-width:none}
   .side>*{text-shadow:0 1px 10px rgba(10,9,8,.98),0 0 4px rgba(10,9,8,.95)}
   #hero3d{opacity:.55}
 }
@@ -179,6 +196,9 @@ body.nav-ready header.top{transform:none;opacity:1}
   .site-foot .foot-l{max-width:none}
   .foot-nav{justify-self:stretch;text-align:left;flex-flow:row wrap;gap:.6rem 1rem}
   main{padding-bottom:5rem}
+  /* На мобильном навигация уезжает вниз на всю ширину — поднимаем кнопку
+     «Анимация» над ней, иначе она попадает под полосу и не кликается. */
+  #particles-toggle{bottom:4.4rem}
   .slotrow{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}
   .slotrow form{flex-shrink:0}
   button,.btn-sm{min-height:44px;min-width:44px}
@@ -198,7 +218,7 @@ body.nav-ready header.top{transform:none;opacity:1}
 }
 
 /* ---- Общие блоки index ---- */
-.kicker{color:var(--acc);font-size:.9rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:.2rem 0}
+.kicker{color:var(--acc);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.18em;margin:.2rem 0}
 .service .badge{font-size:.7rem;background:var(--acc);color:var(--acc-ink);border-radius:.3rem;padding:.1rem .4rem;margin-left:.5rem}
 .team .person{text-align:center}
 .team .person img{width:100%;height:auto;aspect-ratio:512/768;border-radius:var(--radius);margin-bottom:.6rem;object-fit:cover}
@@ -209,6 +229,8 @@ body.nav-ready header.top{transform:none;opacity:1}
    Та же идея, что в хедере: три колонки 1fr | центр | 1fr, средняя пустая.
    Реквизиты и контакты уходят влево, навигация и документы — вправо. */
 .site-foot{
+  /* Футер — это контент, значит выше инструментов (см. карту слоёв). */
+  position:relative;z-index:2;
   background:#0a0908;border-top:1px solid var(--line);
   display:grid;grid-template-columns:1fr var(--center) 1fr;
   gap:1rem;align-items:start;
@@ -302,13 +324,13 @@ body.nav-ready header.top{transform:none;opacity:1}
 /* transform-origin выставляет lock.js: поворот должен идти вокруг кончика сопла,
    иначе translate и rotate считаются от угла элемента и баллончик уезжает
    из-под струи. */
-#spray{position:fixed;left:0;top:0;z-index:6;pointer-events:none;opacity:0;will-change:transform,opacity}
+#spray{position:fixed;left:0;top:0;z-index:1;pointer-events:none;opacity:0;will-change:transform,opacity}
 #spray svg{overflow:visible;filter:drop-shadow(0 0 22px rgba(232,179,75,.22))}
 #spray .spray-button{transform-box:view-box;transform-origin:80px 44px;
   transform:translateY(calc(var(--press,0) * 6px))}
 
 /* ---- Утюжок (этап укладки) ---- */
-#iron{position:fixed;left:0;top:0;z-index:6;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:306px 144.5px}
+#iron{position:fixed;left:0;top:0;z-index:1;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:306px 144.5px}
 #iron svg{overflow:visible;filter:drop-shadow(0 0 26px rgba(0,240,255,.20))}
 /* Ось створок — шарнир (380,310) в viewBox 800×600. Углы в разметке не заданы,
    их двигает --jaw (0 = раскрыто, 1 = сомкнуто). */
@@ -318,7 +340,7 @@ body.nav-ready header.top{transform:none;opacity:1}
 
 /* ---- Cookie-точка и модалка ---- */
 .font-display{font-family:'Playfair Display',Georgia,serif;letter-spacing:.01em}
-#scissors{position:fixed;left:0;top:0;z-index:5;pointer-events:none;opacity:0;will-change:transform,opacity}
+#scissors{position:fixed;left:0;top:0;z-index:1;pointer-events:none;opacity:0;will-change:transform,opacity}
 #scissors svg{overflow:visible;filter:drop-shadow(0 0 22px rgba(232,179,75,.28))}
 /* Ось вращения — винт ножниц (345,275 в viewBox 800×600) */
 #scissors .blade{transform-box:view-box;transform-origin:345px 275px}

@@ -795,7 +795,14 @@ function makePoints(count, fragBody, cfg) {
       varying float vLife;
       varying float vSeed;
       void main() {
-        if (uWash < 0.01 && uSteam < 0.01 && uCut < 0.01 && uLacquer < 0.01) discard;
+        // uGlitter обязателен в гейте: glitter делит с остальными системами
+        // только uGlitter, а его uWash/uSteam/uCut/uLacquer — локальные нули,
+        // которые никто не обновляет. Без uGlitter в условии все четыре были
+        // нулями → discard на каждом фрагменте → блестки финала не рисовались
+        // вообще. У систем без uGlitter Three.js не ставит uniform → GLSL
+        // даёт дефолт 0 → их поведение не меняется.
+        if (uWash < 0.01 && uSteam < 0.01 && uCut < 0.01 && uLacquer < 0.01
+            && uGlitter < 0.01) discard;
         ${fragBody}
       }`,
   });
@@ -1717,6 +1724,15 @@ if (reduced || off) {
     renderer.render(scene, camera);
   }
 
+  setStrands(strandCap);
+  requestAnimationFrame(loop);
+}
+
+// Resize держим ВНЕ ветки reduced/off. Раньше он был внутри else, поэтому при
+// статичном кадре (reduced-motion или выключенная анимация) ресайз не
+// обрабатывался вовсе: камера сохраняла аспект на момент загрузки, и кадр
+// растягивался. В статичном режиме обработчик безвреден — он только
+// пересчитывает проекцию и размер вьюпорта.
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -1727,20 +1743,42 @@ addEventListener('resize', () => {
   strandCap = strandsForWidth(innerWidth);
   if (drawn > strandCap) setStrands(strandCap);
   syncResolution();
-});
+  // В статичном режиме loop не идёт, поэтому кадр перерисовываем здесь.
+  if (reduced || off) renderer.render(scene, camera);
+}, { passive: true });
 
-  // Даже при governor'е, ушедшем в фон, скролл должен двигать сцену
-  addEventListener('scroll', () => {
-    readStage();
+// Скролл только двигает сцену. Рендерить из хендлера не нужно: loop и так
+// рисует каждый кадр, а лишний полный проход на каждое событие скролла
+// (их десятки в секунду) — чистая потеря кадрового бюджета. Прежний
+// комментарий про «governor, ушедший в фон» коду не соответствовал:
+// requestAnimationFrame здесь никогда не отменяется.
+addEventListener('scroll', () => {
+  readStage();
+  if (reduced || off) {
     uniforms.uMouse.value.set(mouse.x, mouse.y);
     renderer.render(scene, camera);
-  }, { passive: true });
-
-  setStrands(strandCap);
-  requestAnimationFrame(loop);
-}
+  }
+}, { passive: true });
 
 function setStatus(t) {
   const el = document.getElementById('particles-toggle');
   if (el) el.textContent = t;
 }
+
+// Кнопка «Анимация». Обработчик раньше жил в particles.js, но тот файл
+// выходил на строке `if (!canvas) return;` — canvas #particles в шаблонах
+// давно нет, поэтому до обработчика дело не доходило и кнопка была мёртвой.
+// Теперь переключение живёт здесь, а lock.js же читает pfp-particles-off при
+// старте, то есть состояние переживает перезагрузку.
+(() => {
+  const btn = document.getElementById('particles-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const nowOff = localStorage.getItem('pfp-particles-off') === '1';
+    localStorage.setItem('pfp-particles-off', nowOff ? '0' : '1');
+    // Полная перезагрузка — единственный честный способ переключить режим:
+    // нужно пересобрать ветку reduced/off, слои частиц и governor, а не
+    // гасить уже запущенный requestAnimationFrame наполовину.
+    location.reload();
+  });
+})();
