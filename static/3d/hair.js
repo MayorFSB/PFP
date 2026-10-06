@@ -377,9 +377,10 @@ const mat = new THREE.ShaderMaterial({
       // после интро ничего не отсекается — иначе была видна нижняя граница.
       float grow = mix(TOP + 3.0, -13.0, smoothstep(0.0, 0.92, uIntro));
       float reveal = smoothstep(grow - 2.2, grow + 0.6, p.y);
-      float solo = 1.0 - smoothstep(0.06, 0.30, uWeave);
-      // Одиночные нити выбираем по jit, а не по радиусу: rad теперь абсолютный
-      float appear = mix(1.0, smoothstep(0.16, 0.02, jit), solo);
+      // Гейт appear УБРАН: он показывал только нити с jit<0.16 (~16%), и на
+      // старте было ≈100 видимых из 645 — выглядело дёшево. Теперь видны все
+      // нарисованные, а вход даёт reveal (падение сверху). Вернуть можно одной
+      // строкой, если понадобится «одиночные нити» вместо «стена волос».
 
       // Разная длина: короткие нити заканчиваются выше — неровный низ, как
       // в референсах. Длинные уходят за кадр и их кончиков не видно.
@@ -393,7 +394,7 @@ const mat = new THREE.ShaderMaterial({
       float finale = smoothstep(${g(TL.finale[0])}, ${g(TL.finale[1])}, uScroll);
       float keep = mix(1.0, isHero, finale);
 
-      vAlpha = reveal * appear * keep * lenMask * (1.0 - fall * 0.92);
+      vAlpha = reveal * keep * lenMask * (1.0 - fall * 0.92);
       vT = t;
       vSeed = jit;
       vRad = plyN;

@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
 import { steam, washLayers, bundleLayers, sizedLayers } from './particles.js';
 import { mouse, mTarget, setStatus, halfViewW } from './core.js';
-import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL } from './config.js';
+import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
 
 import phase0 from './phases/phase0.js';
 import phase1 from './phases/phase1.js';
@@ -26,7 +26,10 @@ import phase4 from './phases/phase4.js';
 import phase5 from './phases/phase5.js';
 import phase6 from './phases/phase6.js';
 
-export const PHASES = [phase0, phase1, phase2, phase3, phase4, phase5, phase6];
+const ALL_PHASES = [phase0, phase1, phase2, phase3, phase4, phase5, phase6];
+// Включены только фазы из ACTIVE_PHASES. Остальные импортированы (чтобы не
+// потерять проводку), но не вызываются — сцена перманентна на фазе 0.
+export const PHASES = ALL_PHASES.filter((ph) => ACTIVE_PHASES.includes(ph.id));
 
 // Диапазоны ОБЯЗАНЫ быть идущими подряд без перекрытий: иначе p при переходе
 // между секциями идёт назад и эффекты откатываются (ножницы возвращались из

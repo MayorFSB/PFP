@@ -17,9 +17,9 @@ const qn = (k, d, lo, hi) => Math.min(Math.max(parseInt(qs.get(k), 10) || d, lo)
 // 550 нитей — пик буфера; governor рисует подмножество.
 // Ёмкость буферов: максимум нитей, на который рассчитана геометрия.
 // Сколько реально рисуется — решает strandsForWidth() по ширине окна.
-const MAX_STRANDS = qn('pfp_strands', 1000, 300, 1000);
+const MAX_STRANDS = qn('pfp_strands', 2000, 300, 4000);
 const SEG = qn('pfp_seg', 56, 8, 96);          // ≥48 — иначе видны изломы спирали
-const PX_WIDTH = qn('pfp_px', 1.82, 0.5, 8);   // полная ширина нити в CSS-пикселях
+const PX_WIDTH = qn('pfp_px', 1.0, 0.5, 8);   // ширина нити: 1px под реализм
 const TOP = 7.6;
 // Должно совпадать с TOP/LEN в vertex shader: корни выше верхнего края кадра,
 // иначе видна горизонтальная линия, где все нити начинаются на одной высоте.
@@ -107,7 +107,7 @@ const WIDTH_FRAC = qn('pfp_widthfrac', 0.34, 0.30, 0.40);
 // min(max(x, lo), hi), лишний аргумент внутри max() всё ломает (так уже
 // было: Math.max(x, 300, 1000) всегда отдавал ≥1000 и потолок застрял).
 const strandsForWidth = (w) => Math.round(Math.min(Math.max(
-  300 + ((w - 700) / (2200 - 700)) * (1000 - 300), 300), 1000));
+  300 + ((w - 700) / 700) * 1700, 300), 2000));
 
 const PHASE = {
   intro: [0.00, 0.08], curl: [0.08, 0.26], why: [0.26, 0.32],
@@ -116,8 +116,12 @@ const PHASE = {
   result: [0.88, 0.96], book: [0.96, 1.00],
 };
 
+// Активные фазы. Сейчас доводим волосы до ультра, поэтому работает
+// только фаза 0. Остальные подключаются по одной. Порядок = порядок вызова.
+const ACTIVE_PHASES = [0];
+
 export {
   isMobile, qs, qn, MAX_STRANDS, SEG, PX_WIDTH, TOP, LEN, HERO_STRANDS, GOV_MIN,
   PLIES, PLY_R0, PLY_DR, PLY_THICK, BUNDLE_R, WIDTH_FRAC, strandsForWidth,
-  TL, g, PHASE,
+  TL, g, PHASE, ACTIVE_PHASES,
 };

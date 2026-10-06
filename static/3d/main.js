@@ -20,8 +20,9 @@ export const off = localStorage.getItem('pfp-particles-off') === '1';
 // нижней границы (срезали нить → fps перескочил за 30 → вернули → снова вниз).
 // Вниз шагаем долями от текущего количества, вверх — по одной нити, там
 // ложное срабатывание невозможно.
-const FPS_LOW = 24;
-const FPS_HIGH = 30;
+const FPS_TARGET = 60;
+const FPS_TOL = 2;
+const GOV_PERIOD = 1.0;
 const COOLDOWN_MS = 800;
 
 // Сглаженный прогресс сцены. k=5 — экспоненциальное сглаживание,
@@ -64,11 +65,13 @@ if (reduced || off) {
 
   function governor(fps, now) {
     if (now - lastChange < COOLDOWN_MS) return;
-    if (fps < FPS_LOW && drawn > GOV_MIN) {
+    // Цель 60fps (vsync): ниже TARGET-TOL срезаем, выше TARGET-0.5 возвращаем.
+    // Порог возврата ниже 60, т.к. выше vsync fps физически не поднимается.
+    if (fps < FPS_TARGET - FPS_TOL && drawn > GOV_MIN) {
       setStrands(drawn - Math.max(1, drawn >> 5));
       lastChange = now;
       console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
-    } else if (fps > FPS_HIGH && drawn < strandCap) {
+    } else if (fps > FPS_TARGET - 0.5 && drawn < strandCap) {
       setStrands(drawn + 1);
       lastChange = now;
       console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
@@ -83,7 +86,7 @@ if (reduced || off) {
 
     frames++;
     fpsAcc += dt;
-    if (fpsAcc >= 1.5) {
+    if (fpsAcc >= GOV_PERIOD) {
       const fps = frames / fpsAcc;
       frames = 0;
       fpsAcc = 0;
