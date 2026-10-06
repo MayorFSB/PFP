@@ -37,12 +37,16 @@ const frac = (x) => x - Math.floor(x);
 const order = Array.from({ length: MAX_STRANDS }, (_, i) => i)
   .sort((a, b) => frac(a * PHI) - frac(b * PHI));
 
-/** Покой нити (стадия 0): тонкая вертикаль с разбросом по радиусу. */
+/** Покой нити (стадия 0): вертикаль с естественным изгибом, не палка.
+ * Статичная волна зависит только от t/phase (не от времени) — порядок плей
+ * не трогает, амплитуда 0.05 при зазоре полос 0.06... нет, при радиусах
+ * 0.6+: смещение ничтожно против межполосного расстояния, пересечений нет. */
 function restPos(R, phase, t, out) {
   const spread = 0.30 + R * 1.5;
-  out[0] = Math.cos(phase * 6.28318530718) * spread * 0.40;
+  const a = phase * 6.28318530718;
+  out[0] = Math.cos(a) * spread * 0.40 + Math.sin(t * 9.0 + a) * 0.05;
   out[1] = TOP - t * LEN;
-  out[2] = Math.sin(phase * 6.28318530718) * spread * 0.30;
+  out[2] = Math.sin(a) * spread * 0.30 + Math.cos(t * 7.0 + a) * 0.04;
 }
 
 const tmp = [0, 0, 0];
@@ -180,6 +184,8 @@ const mat = new THREE.ShaderMaterial({
     varying vec3 vTan;
     varying vec3 vView;
     varying float vEdge;
+    varying float vTip;
+    varying float vThick;
 
     const float PI2 = 6.28318530718;
     const float PI = 3.14159265359;
@@ -275,6 +281,12 @@ const mat = new THREE.ShaderMaterial({
         cos(uTime * 0.5 + jit * 21.0)
       ) * t * 0.55;
       p += fly * flyOff;
+
+      // Пушок (frizz): микро-рябь на ВСЕХ нитях, а не только 13% fly.
+      // Амплитуда 0.012 — впятеро меньше зазора полос 0.06, порядок цел.
+      // Частота высокая (47/39), фаза своя от jit — это смещение, не clump.
+      p.x += sin(t * 47.0 + jit * 6.2831) * 0.012;
+      p.z += cos(t * 39.0 + jit * 6.2831) * 0.010;
 
       // Живое движение гейсится отдельным окном: пока идёт плетение и первые
       // стадии. Границы = TL.idle.
@@ -385,6 +397,9 @@ const mat = new THREE.ShaderMaterial({
       // Разная длина: короткие нити заканчиваются выше — неровный низ, как
       // в референсах. Длинные уходят за кадр и их кончиков не видно.
       float lenMask = 1.0 - smoothstep(lenF - 0.16, lenF, t);
+      // Кончик сходит на нет: 1 в теле → 0 на самом конце. Во fragment через
+      // vAlpha даст разреженный кончик вместо жёсткого среза lenMask.
+      vTip = 1.0 - smoothstep(lenF - 0.10, lenF, t);
 
       // Финал: нити расходятся до HERO_STRANDS геройских. Порядок убывания —
       // низко-дискриминантный, поэтому оставшиеся распределены по объёму.
@@ -395,6 +410,11 @@ const mat = new THREE.ShaderMaterial({
       float keep = mix(1.0, isHero, finale);
 
       vAlpha = reveal * keep * lenMask * (1.0 - fall * 0.92);
+      // Кончик растворяется: стохастический discard поредеет к концу нити.
+      vAlpha *= 0.30 + 0.70 * vTip;
+      // Толщина/яркость нити (aSeed.w 0.75..1.25) — во fragment даст
+      // по-нитевую вариацию тона, иначе центр выглядит пластиковой шторкой.
+      vThick = thick;
       vT = t;
       vSeed = jit;
       vRad = plyN;
@@ -454,6 +474,8 @@ const mat = new THREE.ShaderMaterial({
     varying vec3 vTan;
     varying vec3 vView;
     varying float vEdge;
+    varying float vTip;
+    varying float vThick;
 
     // Chiang 2016: коэффициенты поглощения пигментов.
     // σ_a = eumelanin·mel + pheomelanin·redness, цвет волоса = exp(-σ_a·k).
@@ -490,9 +512,12 @@ const mat = new THREE.ShaderMaterial({
 
       // ---- Цвет из меланина ----------------------------------------------
       float melJit = (vSeed * 2.0 - 1.0) * uMelJitter;
-      // У корня меланина больше — тёмный кор��нь, как в референсах.
+      // У корня меланина больше — тёмный корень, как в референсах.
       float rootRamp = 1.0 - smoothstep(0.0, uRootLen, vT);
       float mel = clamp(uMelanin + melJit + uRootDark * rootRamp, 0.0, 1.0);
+      // Выцветание к кончику (солнце): пигмента к концу на ~12% меньше.
+      // Физично осветляет кончики через тот же Beer–Lambert ниже.
+      mel *= 1.0 - 0.12 * vT;
       vec3 sigmaA = EUMELANIN * (mel * (1.0 - uRedness))
                   + PHEOMELANIN * (mel * uRedness);
       vec3 base = exp(-sigmaA * 5.0);
@@ -523,6 +548,18 @@ const mat = new THREE.ShaderMaterial({
       vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR;
       vec3 specTRT = tintTRT * lobeTRT;
 
+      // ---- Rim + TT: контровой свет --------------------------------------
+      // Волосы узнаются по светящемуся контуру: источник сзади-сверху.
+      // Камера не вращается — направление фиксировано константой.
+      // TT — просвечивание (средний лепесток Marschner, exp ~8): свет проходит
+      // СКВОЗЬ нить, поэтому красит в осветлённый base и зависит от того,
+      // смотрит ли зритель на свет (forward scattering через -V·L).
+      vec3 Lrim = normalize(vec3(0.10, 0.60, -1.00));
+      float fwd = clamp(dot(-V, Lrim) * 0.5 + 0.5, 0.0, 1.0);
+      float lobeTT = strandSpecular(T, V, Lrim, 8.0) * (0.25 + 0.75 * fwd * fwd);
+      vec3 tintTT = mix(base, vec3(1.0), 0.30);
+      vec3 specTT = tintTT * lobeTT * 0.35 * vSpec;
+
       // ---- Kajiya-Kay diffuse + fake multiple scattering ------------------
       float LdotT = dot(T, uLightA);
       float sinTL = sqrt(max(1.0 - LdotT * LdotT, 0.0));
@@ -541,7 +578,18 @@ const mat = new THREE.ShaderMaterial({
       float depthDim = mix(0.34, 1.0, depth * depth);
 
       vec3 col = base * atten * (diffuse + multi + ambient) * depthDim;
-      col += specR + specTRT;
+      col += specR + specTRT + specTT;
+
+      // Контактное затенение у корня: первые 12% длины в тени скальпа.
+      col *= mix(0.45, 1.0, smoothstep(0.0, 0.12, vT));
+      // Сухие светлые кончики: лёгкое тёплое осветление второй половины.
+      col = mix(col, col * vec3(1.08, 1.02, 0.92) + vec3(0.030, 0.020, 0.010),
+                smoothstep(0.55, 1.0, vT) * 0.50);
+      // По-нитевая вариация: толстые нити темнее и теплее, тонкие — светлее.
+      // Диапазон ±12% — достаточно, чтобы разбить «шторку», но не шум.
+      float thickN = clamp((vThick - 0.75) / 0.5, 0.0, 1.0);
+      col *= 1.06 - 0.12 * thickN;
+      col *= vec3(1.0, 0.99 + 0.02 * thickN, 0.97 + 0.03 * (1.0 - thickN));
 
       // Область яркости под курсором — считается per-fragment, поэтому
       // светится только там, где реально лежат нити.
