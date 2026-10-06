@@ -114,6 +114,63 @@ function restPos(R, phase, t, out) {
 //     → нити внутри плеи параллельны и не пересекаются;
 //   • между плеями радиусы разные → пересечение невозможно в принципе.
 //   • внешние слои крутятся быстрее — получается переплетение без касаний.
+// ---- Единый таймлайн анимации ------------------------------------------
+// Источник правды для ВСЕХ чисел, привязанных к uScroll — и в JS, и в GLSL
+// (в шейдер они попадают интерполяцией в шаблонную строку).
+//
+// Раньше числа жили в трёх независимых местах: таблица PHASE, константы
+// CUT_FROM/STYLE_FROM и литералы внутри шейдера. При выпиливании секций
+// PHASE пересчитали, а остальные два — нет, поэтому инструменты приходилось
+// ставить «на глаз» по старой сетке. Сейчас расхождение зафиксировано явно:
+// PHASE — контентная сетка (источник p), TL — фактически работающие числа.
+//
+// Значения ТЕКУЩИЕ РАБОТАЮЩИЕ, поведение при переносе не меняется ни на
+// бит. Ничего не «приводим к красивому» — это отдельная задача (D–F).
+const TL = {
+  // Плетение нитей: 0 на входе → 1 к стадии «локон».
+  weaveIn: [0.02, 0.22],
+  // Завитость и ветвление гаснут к мытью.
+  curlOff: [0.19, 0.29],
+  // Мытьё раскручивает локон, укладка закручивает снова.
+  straightOn: [0.22, 0.31],
+  straightOff: [0.57, 0.63],
+  // Гейт живой анимации (в вершинном шейдере).
+  idle: [0.30, 0.44],
+  // Мытьё на самих нитях: 4 границы в вершинном шейдере.
+  washHair: [0.29, 0.38, 0.40, 0.50],
+  // Мытьё на частицах (пузыри/вода/пена) — отдельная сетка, не совпадает
+  // с washHair: эффекты должны начаться раньше и кончиться раньше.
+  washFx: [0.27, 0.32, 0.40, 0.46],
+  // Стрижка: отсечение прядей в шейдере.
+  cut: [0.44, 0.56],
+  // Стрижка: частицы срезанных волосков — своя сетка.
+  cutFx: [0.43, 0.46, 0.56, 0.60],
+  // Бегущая волна укладки в вершинном шейдере.
+  wave: [0.60, 0.78],
+  // Утюжок целиком.
+  style: [0.60, 0.72],
+  // Пар на укладке — своя сетка, шире stage.
+  steamFx: [0.58, 0.65, 0.72, 0.80],
+  // Фиксация лаком.
+  fix: [0.76, 0.88],
+  // Финальный этап.
+  result: [0.88, 0.96],
+  // Лак в вершинном шейдере.
+  lacq: [0.88, 0.92],
+  // Финальное прореживание прядей.
+  finale: [0.88, 0.95],
+  // Подфазы внутри этапов (доли 0..1, не абсолютные значения uScroll).
+  fixGloss: [0.40, 0.92],   // глянец внутри fix
+  fixGlue: [0.44, 0.95],    // склейка внутри fix
+  resultSweep: [0.30, 0.60], // окно скользящего блика внутри result
+  resultGlitter: [0.58, 0.86], // окно блесток внутри result
+};
+
+// Числа в GLSL. Шейдеры собираются шаблонными литералами, поэтому сюда
+// подставляются те же числа, что читает JS. GLSL не умеет вызывать JS —
+// инъекция в строку это единственный способ получить одну точку правды.
+const g = (n) => (Number.isFinite(n) ? n.toFixed(4) : '0.0');
+
 const PLIES = qn('pfp_plies', 6, 2, 16);
 const PLY_R0 = 0.60;
 const PLY_DR = 0.70;
@@ -194,6 +251,8 @@ const uniforms = {
   uGlint: { value: 0 },    // сила акцентного блика
   uGlintY: { value: 0 },   // положение полосы сканирования по высоте
   uGlitter: { value: 0 },  // интенсивность блесток
+  uGrade: { value: new THREE.Vector3(1, 1, 1) },  // цветокоррекция сцены
+  uBundleK: { value: 1 }, // масштаб оболочки частиц под ширину пучка
   uIronGlow: { value: 0 },  // подсветка/пар в месте смыкания створок
   uIronPos: { value: new THREE.Vector3(-0.86, 4.2, 0) },
   uPlyR0: { value: PLY_R0 },
@@ -358,9 +417,9 @@ const mat = new THREE.ShaderMaterial({
       ) * t * 0.55;
       p += fly * flyOff;
 
-      // Живое движение: бегущая волна вдоль нити. Частота/фаза индивидуальны,
-      // но все нити следуют одному lock-движению (п. 2.5).
-      float idle = 1.0 - smoothstep(0.30, 0.44, uScroll);
+      // Живое движение гейсится отдельным окном: пока идёт плетение и первые
+      // стадии. Границы = TL.idle.
+      float idle = 1.0 - smoothstep(${g(TL.idle[0])}, ${g(TL.idle[1])}, uScroll);
       float w1 = t * 5.5 * wf - uTime * 1.15 * wf + phase * PI2;
       float w2 = t * 11.0 * wf + uTime * 0.72 + jit * PI2;
       float amp = (0.075 + fly * 0.10) * idle;
@@ -368,13 +427,14 @@ const mat = new THREE.ShaderMaterial({
       p.z += (cos(w2) * 0.6 + sin(w1 * 0.5) * 0.4) * amp * 0.8;
 
       // Мытьё: нити раздвигаются и становятся прямыми (uStraight).
-      // Границы = PHASE.wash [0.30, 0.40].
-      float wash = smoothstep(0.29, 0.38, uScroll) * (1.0 - smoothstep(0.40, 0.50, uScroll));
+      // Границы = TL.washHair (НЕ PHASE.wash — контентная сетка другая).
+      float wash = smoothstep(${g(TL.washHair[0])}, ${g(TL.washHair[1])}, uScroll)
+        * (1.0 - smoothstep(${g(TL.washHair[2])}, ${g(TL.washHair[3])}, uScroll));
       p.x += sin(phase * PI2) * wash * 0.26;
 
       // Срез ножницами: линия среза ползёт вниз по синусоиде, всё что под
-      // ней — отрезано и падает.
-      float cutT = clamp((uScroll - 0.44) / 0.12, 0.0, 1.0);
+      // ней — отрезано и падает. Границы = TL.cut.
+      float cutT = clamp((uScroll - ${g(TL.cut[0])}) / ${g(TL.cut[1] - TL.cut[0])}, 0.0, 1.0);
       float line = cutLine(p.x, cutT);
       // Монотонная мера «ниже линии». Через smoothstep по ЛИНИИ, а не по
       // y, — иначе на границе пряди мерцали.
@@ -390,7 +450,7 @@ const mat = new THREE.ShaderMaterial({
       // Укладка/завивка. Баланс между «почти не видно» (0.08+0.30) и «углы у линий,
       // волна пересекает сама себя» (0.16+0.66, cf 1.75). Амплитуда держится
       // ниже радиуса пучка (~0.6), иначе виток выходит за пределы bundle.
-      float wave = smoothstep(0.60, 0.78, uScroll);
+      float wave = smoothstep(${g(TL.wave[0])}, ${g(TL.wave[1])}, uScroll);
       float curlAmp = (0.11 + 0.40 * plyN) * wave;
       float cf = 1.35;
       p.x += sin(p.y * cf + uTime * 1.10 + phase * PI2) * curlAmp;
@@ -444,9 +504,9 @@ const mat = new THREE.ShaderMaterial({
         p.x += g * 0.05 * sin(uTime * 3.0);
       }
 
-      // Лак. Границы = PHASE.result [0.88, 0.92], плюс глянец от фиксации
-      // (ТЗ этап 5) — он держится до конца страницы.
-      float lacq = max(smoothstep(0.88, 0.92, uScroll), uGloss);
+      // Лак. Границы = TL.lacq, плюс глянец от фиксации (TL.fixGloss) —
+      // он держится до конца страницы.
+      float lacq = max(smoothstep(${g(TL.lacq[0])}, ${g(TL.lacq[1])}, uScroll), uGloss);
       float wet = wash;
 
       // Салют
@@ -470,10 +530,8 @@ const mat = new THREE.ShaderMaterial({
       // низко-дискриминантный, поэтому оставшиеся распределены по объёму.
       float heroCut = uHero / max(uCount, 1.0);
       float isHero = smoothstep(heroCut + 0.04, heroCut - 0.02, jit);
-      // Финальное прореживание — только на стадии «Результат» [0.88, 0.96].
-      // На старой сетке оно приходилось на 0.80–0.92, то есть наступало
-      // прямо во время фиксации, когда баллончик ещё в кадре.
-      float finale = smoothstep(0.88, 0.95, uScroll);
+      // Финальное прореживание. Границы = TL.finale (внутри этапа TL.result).
+      float finale = smoothstep(${g(TL.finale[0])}, ${g(TL.finale[1])}, uScroll);
       float keep = mix(1.0, isHero, finale);
 
       vAlpha = reveal * appear * keep * lenMask * (1.0 - fall * 0.92);
@@ -523,6 +581,8 @@ const mat = new THREE.ShaderMaterial({
     // fragment: в vertex эти uniform-ы не нужны, а без декларации GLSL их не
     // находит и шейдер не собирается.
     uniform float uGlint, uGlintY;
+    // Цветокоррекция сцены: три множителя, собираются в JS по стадиям.
+    uniform vec3 uGrade;
 
     varying float vT;
     varying float vAlpha;
@@ -637,6 +697,10 @@ const mat = new THREE.ShaderMaterial({
       gband *= 0.75 + 0.45 * sin(vSeed * 61.0 + vT * 5.0);
       col += vec3(1.0, 0.95, 0.86) * gband * uGlint * (0.35 + vSpec * 0.85);
 
+      // Цветокоррекция — последняя операция, после блеска и гало, иначе
+      // посчитается дважды на уже окрашенном сигнале.
+      col *= uGrade;
+
       gl_FragColor = vec4(col, 1.0);
     }`,
 });
@@ -668,7 +732,7 @@ const glitterFrag = `
 
 const GLITTER_VERT = `
   // Радиус сжат к центру пучка: у самого края блестки не нужны.
-  float rr = uRadius * (0.25 + 0.75 * aDrop.w) * sqrt(aDrop.z);
+  float rr = uRadius * (0.25 + 0.75 * aDrop.w) * sqrt(aDrop.z) * uBundleK;
   float ang = aDrop.x * 6.28318530718;
   // Высота по всей длине локона, TOP — общий верхний край.
   float yy = uTop - aDrop.y * uTop * 1.32;
@@ -757,6 +821,11 @@ function makePoints(count, fragBody, cfg) {
       uBrake: { value: 0.10 },
       uFadeEnd: { value: 0.72 },
       uLacquer: { value: 0 },
+      // Масштаб поперечного радиуса под ширину пучка. Профили частиц
+      // (halfW 0.41-0.62, uRadius 0.72) писались под пучок радиусом ~0.6;
+      // без этого множителя на широком экране пузыри и блёстки вжимаются
+      // внутрь пучка вместо «по бокам» и «по объёму».
+      uBundleK: { value: 1 },
     },
     transparent: true,
     depthWrite: false,
@@ -768,6 +837,7 @@ function makePoints(count, fragBody, cfg) {
       uniform float uTime, uSize, uSizePow, uSizeMin, uRun, uRunSpeed;
       uniform float uSpeedA, uSpeedB, uSpin, uCling;
       uniform float uTop, uSpan, uRadius, uViewportH, uFovHalf;
+      uniform float uBundleK;
       uniform float uSnip, uScissorX, uScissorY, uIronFocus;
       uniform vec3 uIronPos, uNozzle, uDir;
       uniform float uJetLen, uSpread, uRise, uBrake, uFadeEnd, uLacquer;
@@ -861,7 +931,9 @@ const bubbles = makePoints(qn('pfp_bubbles', 90, 0, 4000), bubbleFrag, {
   float u = clamp(aDrop.y + drift, 0.0, 1.0);
   float y = uTop - u * uSpan + sin(t * 0.75 + aDrop.x * 25.0) * 0.10;
   float halfW = mix(0.41, 0.62, 1.0 - u);
-  float r = halfW + 0.30 + aDrop.w * 0.95 + sin(t * 0.55 + aDrop.w * 18.0) * 0.13;
+  // Масштабируем итоговый радиус ОДИН раз. Если умножить halfW отдельно, а
+  // потом ещё и r целиком, компонент от halfW получит uBundleK дважды.
+  float r = (halfW + 0.30 + aDrop.w * 0.95 + sin(t * 0.55 + aDrop.w * 18.0) * 0.13) * uBundleK;
   float ang = (aDrop.z - 0.5) * 0.85;
   p = vec3(side * r * cos(ang), y, sin(ang) * r * 0.9);
   // Пульсация размера — пузырь «дышит»
@@ -893,7 +965,7 @@ const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   u = mix(u, fract(aDrop.y + uTime * (0.05 + aDrop.w * 0.07)), isDrip);
   vLife = isDrip;
 
-  float halfW = mix(0.41, 0.62, 1.0 - clamp(u, 0.0, 1.0));
+  float halfW = mix(0.41, 0.62, 1.0 - clamp(u, 0.0, 1.0)) * uBundleK;
   // Только ПЕРЕДНЯЯ полусфера. depthTest выключен (bundle непрозрачный и
   // забивает depth), поэтому частицы с задней стороны просвечивали бы
   // сквозь волосы. Здесь cos(ang) > 0 — z всегда впереди.
@@ -952,8 +1024,11 @@ const foamRivulet = makePoints(FOAM_CLOUDS * FOAM_PER, foamFrag, {
   // Азимут по фронту bundle: облака липнут к разным прядям, а не висят
   // все в одной плоскости. Плюс покачивание.
   float az = (aExtra.z - 0.5) * 1.5;
-  float cx = sin(az) * halfW * 0.95 + sin(t * 0.45 + aExtra.x * 20.0) * 0.07;
-  float cz = cos(az) * halfW * 0.80;
+  // Только поперечный компонент от halfW масштабируется вместе с шириной
+  // пучка; покачивание (0.07) — это собственное движение облака, его
+  // растягивать нельзя, иначе облако «разъезжается» по вертикали.
+  float cx = sin(az) * halfW * 0.95 * uBundleK + sin(t * 0.45 + aExtra.x * 20.0) * 0.07;
+  float cz = cos(az) * halfW * 0.80 * uBundleK;
 
   // Компактное облако: смещение частицы внутри шара
   float spread = 0.15 + aExtra.w * 0.06;
@@ -1064,8 +1139,10 @@ const cutBits = makePoints(CUT_BITS, cutBitFrag, {
   float y = mix(uScissorY - 0.3, -11.0, life * life);
   float x = (aDrop.z - 0.5) * 1.6
           + sin(uTime * 2.2 + aDrop.x * 20.0) * 0.20 * life;
-  // Burst вылетает из-под ножниц, а не из случайного места
-  x = mix(x, uScissorX + (aDrop.z - 0.5) * 0.60, layer);
+  // Burst вылетает из-под ножниц, а не из случайного места. Разброс по X
+  // тоже масштабируется шириной пучка, иначе на широком экране волоски падают
+  // узкой полосой у линии среза.
+  x = mix(x, uScissorX + (aDrop.z - 0.5) * 0.60 * uBundleK, layer);
 
   // Длинный fade-in: при высокой скорости короткий давал вспышку
   vLife = gate * smoothstep(0.0, 0.10, life) * (1.0 - smoothstep(0.45, 0.95, life));
@@ -1153,7 +1230,7 @@ for (const [pts, jetLen, spread, rise, brake, fadeEnd] of [
 }
 
 // ---- 9. Фиксация: 5 подфаз по ТЗ ---------------------------------------
-// Этап fix = PHASE [0.72, 0.84], прогресс sT:
+// Этап fix = TL.fix [0.76, 0.88] (PHASE.fix то же), прогресс sT:
 //   0.00–0.20 исходное состояние (баллончика нет)
 //   0.20–0.30 материализация баллончика справа, сопло наводится
 //   0.30–0.55 спрей 1: направленный быстрый поток, кнопка нажимается
@@ -1222,8 +1299,8 @@ function updateFix(p) {
   // иначе на последних 6% стадии пряди «расклеиваются», а на финальной
   // стадии hair_glued = 0, хотя по ТЗ там должно быть 1.0. Значения выросли
   // по sT и держатся до конца страницы, потому что p монотонен по скроллу.
-  uniforms.uGloss.value = S.smoothstep(sT, 0.40, 0.92);
-  uniforms.uGlue.value = S.smoothstep(sT, 0.44, 0.95);
+  uniforms.uGloss.value = S.smoothstep(sT, TL.fixGloss[0], TL.fixGloss[1]);
+  uniforms.uGlue.value = S.smoothstep(sT, TL.fixGlue[0], TL.fixGlue[1]);
 
   // Этап 2 (0.20–0.30): баллончик появляется слева и наводится
   const vis = S.smoothstep(sT, 0.20, 0.30)
@@ -1272,7 +1349,7 @@ function updateFix(p) {
 }
 
 // ---- 10. Финал «Результат»: три подэтапа по ТЗ ---------------------------
-// Этап result = PHASE [0.96, 1.00], локальный прогресс sR:
+// Этап result = TL.result [0.88, 0.96] (PHASE.result то же), прогресс sR:
 //   0.00–0.30 стабилизация формы: баллончик ушёл, форма зафиксирована,
 //            камера может плавно облетать
 //   0.30–0.60 акцентные скользящие блики по всей длине волн
@@ -1302,7 +1379,7 @@ function updateResult(p, t) {
 
   // Подэтап 2: полоса сканирования идёт сверху вниз и возвращается наверх.
   // sawtooth вместо smoothstep, иначе на краях мгновенный простой.
-  const sweep = (sR - 0.30) / 0.30;
+  const sweep = (sR - TL.resultSweep[0]) / (TL.resultSweep[1] - TL.resultSweep[0]);
   let scan = 0;
   if (sweep > 0 && sweep < 1) {
     const cyc = sweep * 2.0;
@@ -1314,7 +1391,7 @@ function updateResult(p, t) {
   uniforms.uGlintY.value = THREE.MathUtils.lerp(SCAN_TOP, SCAN_BOTTOM, scan);
 
   // Подэтап 3: блестки. Растут до 1.0 и удерживаются в финальном кадре.
-  uniforms.uGlitter.value = S.smoothstep(sR, 0.58, 0.86);
+  uniforms.uGlitter.value = S.smoothstep(sR, TL.resultGlitter[0], TL.resultGlitter[1]);
   glitter.visible = uniforms.uGlitter.value > 0.01;
   // Стабилизация к 100%: мерцание не замирает полностью, а лишь выравнивается
   // по амплитуде — иначе финальный кадр выглядит «мёртвым».
@@ -1332,9 +1409,12 @@ const SC_SCALE = SC_W / SC_VIEW_W;
 const SC_OFF_X = SC_PIVOT_X * SC_SCALE;
 const SC_OFF_Y = SC_PIVOT_Y * SC_SCALE;
 
-// Этап стрижки в координатах uScroll (совпадает с PHASE.cut)
-const CUT_FROM = 0.44;
-const CUT_TO = 0.56;
+// Этап стрижки в координатах uScroll — границы в TL.cut, не дублируем числа.
+// ВНИМАНИЕ: TL.cut = [0.44, 0.56] НЕ совпадает с PHASE.cut = [0.48, 0.60].
+// Ножницы начинают наезжать на 0.44, то есть ещё на стадии services. Это
+// осознанное опережение инструмента относительно его секции, зафиксированное
+// числом, а не рассинхроном. Правка ритма = правка TL.cut в одном месте.
+
 // Доля экрана, свободная сверху и снизу — ножницы не должны выступать
 const EDGE_MARGIN = 0.15;
 
@@ -1350,7 +1430,7 @@ const toPxY = (y) => (1 - ((y / halfViewH) * 0.5 + 0.5)) * innerHeight;
 function updateScissors(p, time) {
   if (!scissorEl) return;
   // Прогресс ВНУТРИ этапа стрижки
-  const cutLocal = Math.min(Math.max((p - CUT_FROM) / (CUT_TO - CUT_FROM), 0), 1);
+  const cutLocal = Math.min(Math.max((p - TL.cut[0]) / (TL.cut[1] - TL.cut[0]), 0), 1);
   const vis = THREE.MathUtils.smoothstep(cutLocal, 0.08, 0.18)
     * (1 - THREE.MathUtils.smoothstep(cutLocal, 0.86, 0.96));
   if (vis <= 0.002) {
@@ -1387,13 +1467,15 @@ function updateScissors(p, time) {
 }
 
 // ---- 7. Утюжок: 7 подфаз стадии укладки ---------------------------------
-// Этап style = PHASE [0.60, 0.72]. Подфазы по прогрессу внутри этапа (sT):
+// Границы этапа — TL.style = [0.60, 0.72], они НЕ совпадают с
+// PHASE.style = [0.64, 0.76]: утюжок материализуется на 0.60, то есть ещё
+// на стадии team. Опережение зафиксировано числом в TL, а не рассинхроном.
+// Подфазы по прогрессу внутри этапа (sT):
 //   0.00–0.20 прямые волосы      0.20–0.30 утюжок материализуется
 //   0.30–0.40 прядь обвивается    0.40–0.50 створки смыкаются
 //   0.50–0.60 пар в месте смыкания 0.60–0.72 скользит вниз и отпускает
 //   0.67–0.80 прядь завита        0.80–1.00 завиваются все
-const STYLE_FROM = 0.60;
-const STYLE_TO = 0.72;
+
 // Геометрия SVG утюжка: viewBox 800×600, группа сдвинута на (50,40),
 // шарнир (380,310) → (430,350) в viewBox. Размер 340×255 px.
 // Рабочие концы створок (петли заканчиваются на x≈670) → (720,340) в viewBox.
@@ -1415,7 +1497,7 @@ function ironAnchor(sT) {
 
 function updateIron(p) {
   if (!ironEl) return;
-  const sT = Math.min(Math.max((p - STYLE_FROM) / (STYLE_TO - STYLE_FROM), 0), 1);
+  const sT = Math.min(Math.max((p - TL.style[0]) / (TL.style[1] - TL.style[0]), 0), 1);
   // 0.20–0.30 материализация, держится до 0.80 и уходит
   const vis = THREE.MathUtils.smoothstep(sT, 0.20, 0.30)
     * (1 - THREE.MathUtils.smoothstep(sT, 0.80, 0.92));
@@ -1539,20 +1621,35 @@ function readStage() {
       window.__pfpSalute();
     }
   }
-  const p = range[0] + (range[1] - range[0]) * stageLocal;
-  uniforms.uScroll.value = p;
-  // Плетение нитей: 0 на входе → 1 к стадии «локон»
-  uniforms.uWeave.value = THREE.MathUtils.smoothstep(p, 0.02, 0.22);
-  // Завитость и ветвление — только в начальных стадиях, к мытью исчезают
-  uniforms.uCurl.value = 1 - THREE.MathUtils.smoothstep(p, 0.19, 0.29);
-  // Мытьё раскручивает локон в прямые нити; завивка на укладке закручивает снова
-  uniforms.uStraight.value = THREE.MathUtils.smoothstep(p, 0.22, 0.31)
-    * (1 - THREE.MathUtils.smoothstep(p, 0.57, 0.63));
+  // Возвращает СЫРОЙ p (без сглаживания). Uniform'ы здесь больше НЕ пишутся:
+  // анимация едет по сглаженному значению (см. applyTimeline), UI-состояния
+  // (navReady, saluted) — по сырому, чтобы интерфейс не тормозил.
+  return range[0] + (range[1] - range[0]) * stageLocal;
+}
+
+/**
+ * Единственное место, где p превращается в состояние сцены.
+ *
+ * Раньше это было тело readStage(), из-за чего сглаживание скролла было
+ * невозможно: сетка сущностей считалась от сырого p, а шейдер — от
+ * сглаженного, и частицы мытья расходились с прядями. Теперь обе вещи
+ * читают одно и то же число.
+ *
+ * @param {number} p сглаженный прогресс 0..1
+ */
+function applyTimeline(p) {
+  // Плетение нитей: 0 на входе → 1 к стадии «локон». Границы = TL.weaveIn.
+  uniforms.uWeave.value = THREE.MathUtils.smoothstep(p, TL.weaveIn[0], TL.weaveIn[1]);
+  // Завитость и ветвление — только в начальных стадиях, к мытью исчезают.
+  uniforms.uCurl.value = 1 - THREE.MathUtils.smoothstep(p, TL.curlOff[0], TL.curlOff[1]);
+  // Мытьё раскручивает локон в прямые нити; укладка закручивает снова.
+  uniforms.uStraight.value = THREE.MathUtils.smoothstep(p, TL.straightOn[0], TL.straightOn[1])
+    * (1 - THREE.MathUtils.smoothstep(p, TL.straightOff[0], TL.straightOff[1]));
 
   // Три сущности фазы мытья: пузыри по бокам, вода в волосах, стекающая пена.
-  // Границы = PHASE.wash [0.30, 0.40] с небольшим перекрытием.
-  const washVis = THREE.MathUtils.smoothstep(p, 0.27, 0.32)
-    * (1 - THREE.MathUtils.smoothstep(p, 0.40, 0.46));
+  // Сетка частиц washFx шире и раньше сетки самих нитей washHair.
+  const washVis = THREE.MathUtils.smoothstep(p, TL.washFx[0], TL.washFx[1])
+    * (1 - THREE.MathUtils.smoothstep(p, TL.washFx[2], TL.washFx[3]));
   for (const pts of washLayers()) {
     pts.material.uniforms.uWash.value = washVis;
     pts.visible = washVis > 0.01;
@@ -1562,17 +1659,43 @@ function readStage() {
   // Один и тот же слой переиспользуется обоими этапами.
   const steamNow = Math.max(
     washVis * 0.35,
-    THREE.MathUtils.smoothstep(p, 0.58, 0.65) * (1 - THREE.MathUtils.smoothstep(p, 0.72, 0.80)),
+    THREE.MathUtils.smoothstep(p, TL.steamFx[0], TL.steamFx[1])
+      * (1 - THREE.MathUtils.smoothstep(p, TL.steamFx[2], TL.steamFx[3])),
   );
   steam.material.uniforms.uSteam.value = steamNow;
   steam.visible = steamNow > 0.01;
 
-  // Срезанные волоски живут на этапе стрижки (PHASE.cut = [0.44, 0.56])
-  const cutVis = THREE.MathUtils.smoothstep(p, 0.43, 0.46)
-    * (1 - THREE.MathUtils.smoothstep(p, 0.56, 0.60));
+  // Срезанные волоски живут на этапе стрижки.
+  const cutVis = THREE.MathUtils.smoothstep(p, TL.cutFx[0], TL.cutFx[1])
+    * (1 - THREE.MathUtils.smoothstep(p, TL.cutFx[2], TL.cutFx[3]));
   cutBits.material.uniforms.uCut.value = cutVis;
   cutBits.visible = cutVis > 0.01;
-  return p;
+}
+
+// Цветокоррекция: три якоря, линейное смешивание по сетке таймлайна.
+// В конце нормируем по среднему каналу, иначе сумма множителей уезжает от 3
+// и общая яркость кадра «плавает» при наложении якорей.
+const GRADE_COOL = [-0.05, -0.01, 0.07];  // мытьё — холодный
+const GRADE_WARM = [0.05, 0.00, -0.07];   // укладка — тёплый
+const GRADE_GOLD = [0.06, 0.00, -0.10];   // финал — золотой
+function applyGrade(p) {
+  const S = THREE.MathUtils;
+  // Холодный — ОКНО мытья, а не нарастающий фронт: иначе оттенок залипает на
+  // всю оставшуюся страницу и укладка выглядит мокрой.
+  const c = S.smoothstep(p, TL.washFx[0], TL.washFx[1])
+    * (1 - S.smoothstep(p, TL.washFx[2], TL.washFx[3]));
+  // Тёплый — нарастающий фронт укладки и держится до финала: волосы после
+  // утюжка остаются тёплыми, это физично.
+  const w = S.smoothstep(p, TL.wave[0], TL.wave[1]);
+  const f = S.smoothstep(p, TL.finale[0], TL.finale[1]);
+  const u = uniforms.uGrade.value;
+  u.set(
+    1 + GRADE_COOL[0] * c + GRADE_WARM[0] * w + GRADE_GOLD[0] * f,
+    1 + GRADE_COOL[1] * c + GRADE_WARM[1] * w + GRADE_GOLD[1] * f,
+    1 + GRADE_COOL[2] * c + GRADE_WARM[2] * w + GRADE_GOLD[2] * f,
+  );
+  const mean = (u.x + u.y + u.z) / 3;
+  if (mean > 1e-4) u.multiplyScalar(1 / mean);
 }
 
 /** Гало под курсором включается только рядом с локоном (|x|<2.0, |y|<5.6),
@@ -1589,6 +1712,8 @@ let drawn = MAX_STRANDS;
 // меньше, и при этом FPS-страховка сохраняется.
 let strandCap = strandsForWidth(innerWidth);
 const washLayers = () => [bubbles, water, foamRivulet];
+// Слои, чей поперечный радиус обязан ехать вместе с шириной пучка
+const bundleLayers = () => [...washLayers(), cutBits, glitter];
 // Слои, которым нужен gl_PointSize в CSS-пикселях при resize
 const sizedLayers = () => [...washLayers(), steam, cutBits, sprayFast, sprayCloud];
 function setStrands(n) {
@@ -1611,8 +1736,9 @@ window.__pfpLock = {
   get triangles() { return drawn * SEG * 2; },
   setStrands,
   get strandCap() { return strandCap; },
-  // Слои частиц нужны для отладки этапа фиксации и финала из консоли/тестов.
+  // Слои частиц нужны для отладки из консоли/тестов.
   sprayFast, sprayCloud, glitter, camera,
+  bubbles, water, foamRivulet, cutBits, steam,
   get spray() {
     return [sprayFast, sprayCloud].map((p) => ({
       visible: p.visible,
@@ -1644,6 +1770,12 @@ window.__pfpStage = () => ({
 function syncWidth() {
   const wantWorld = 2 * halfViewW * WIDTH_FRAC;
   uniforms.uWidthK.value = THREE.MathUtils.clamp(wantWorld / (2 * BUNDLE_R), 0.5, 2.6);
+  // Оболочка частиц подстраивается под фактический радиус пучка.
+  // Калибровка 0.60 — радиус, под который писались профили систем
+  // (halfW 0.41-0.62, uRadius 0.72). Пар и струю лака не трогаем: это фон
+  // и сопло, они не привязаны к геометрии пучка.
+  const K = uniforms.uWidthK.value / 0.60;
+  for (const pts of bundleLayers()) pts.material.uniforms.uBundleK.value = K;
   const px = Math.round(innerWidth * WIDTH_FRAC);
   document.documentElement.style.setProperty('--center', `${px}px`);
 }
@@ -1662,28 +1794,39 @@ const off = localStorage.getItem('pfp-particles-off') === '1';
 
 if (reduced || off) {
   uniforms.uIntro.value = 1;
-  uniforms.uScroll.value = 0.30;
-  uniforms.uWeave.value = 1;
   setStrands(strandCap);
-  readStage();          // выставит uWash и видимость капель
+  // Статичный кадр: сглаживания нет, поэтому p применяется как есть.
+  const p0 = readStage();
+  uniforms.uScroll.value = p0;
+  applyTimeline(p0);
+  applyGrade(p0);
   uniforms.uTime.value = 2.0;
   renderer.render(scene, camera);
   setStatus('Анимация выключена');
 } else {
-  // Governor: ровно одна нить за шаг (2.7/2.8), гистерезис, cooldown.
+  // Governor: гистерезис по FPS + cooldown. Шаг вниз адаптивный: при
+  // ровно ±1 нити путь от 1000 до GOV_MIN занимал ~32 минуты, а система
+  // «звенела» у нижней границы (срезали нить → fps перескочил за 30 →
+  // вернули → снова вниз). Вниз шагаем долями от текущего количества,
+  // вверх — по одной нити, там ложное срабатывание невозможно.
   const FPS_LOW = 24;
   const FPS_HIGH = 30;
-  const COOLDOWN_MS = 2000;
+  const COOLDOWN_MS = 800;
   let frames = 0;
   let fpsAcc = 0;
   let lastChange = 0;
   let last = performance.now();
   const t0 = last;
+  // Сглаженный прогресс сцены. k=5 — экспоненциальное сглаживание,
+  // независимое от частоты кадров (в отличие от фиксированного коэффициента).
+  // 3 — «тягучий люкс», 7 — резче.
+  const SCROLL_K = 5.0;
+  let scrollSmooth = 0;
 
   function governor(fps, now) {
     if (now - lastChange < COOLDOWN_MS) return;
     if (fps < FPS_LOW && drawn > GOV_MIN) {
-      setStrands(drawn - 1);
+      setStrands(drawn - Math.max(1, drawn >> 5));
       lastChange = now;
       console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
     } else if (fps > FPS_HIGH && drawn < strandCap) {
@@ -1708,17 +1851,26 @@ if (reduced || off) {
       governor(fps, now);
     }
 
-    mouse.x += (mTarget.x - mouse.x) * 0.09;
-    mouse.y += (mTarget.y - mouse.y) * 0.09;
+    // Мышь: экспоненциальное сглаживание через dt. Фиксированный 0.09 означал,
+    // что на 30 fps гало вел себя вдвое медленнее, чем на 60.
+    const mk = 1 - Math.exp(-dt * 6.0);
+    mouse.x += (mTarget.x - mouse.x) * mk;
+    mouse.y += (mTarget.y - mouse.y) * mk;
     uniforms.uTime.value = t;
     uniforms.uMouse.value.set(mouse.x, mouse.y);
     uniforms.uIntro.value = Math.min(t / 3.4, 1);
-    readStage();
+    // Сцена едет по сглаженному p, UI — по сырому (внутри readStage).
+    const pRaw = readStage();
+    scrollSmooth += (pRaw - scrollSmooth) * (1 - Math.exp(-dt * SCROLL_K));
+    const p = scrollSmooth;
+    uniforms.uScroll.value = p;
+    applyTimeline(p);
+    applyGrade(p);
     updateMouseGlow();
-    updateScissors(uniforms.uScroll.value, t);
-    updateIron(uniforms.uScroll.value);
-    updateFix(uniforms.uScroll.value);
-    updateResult(uniforms.uScroll.value, t);
+    updateScissors(p, t);
+    updateIron(p);
+    updateFix(p);
+    updateResult(p, t);
     const st = (t - successT0) / 2.5;
     uniforms.uSuccess.value = st >= 0 && st <= 1 ? Math.sin(st * Math.PI) : 0;
     renderer.render(scene, camera);
@@ -1747,17 +1899,17 @@ addEventListener('resize', () => {
   if (reduced || off) renderer.render(scene, camera);
 }, { passive: true });
 
-// Скролл только двигает сцену. Рендерить из хендлера не нужно: loop и так
-// рисует каждый кадр, а лишний полный проход на каждое событие скролла
-// (их десятки в секунду) — чистая потеря кадрового бюджета. Прежний
-// комментарий про «governor, ушедший в фон» коду не соответствовал:
-// requestAnimationFrame здесь никогда не отменяется.
+// Скролл в анимированном режиме обрабатывается loop'ом каждый кадр, поэтому
+// хендлер здесь нужен только для статичного кадра (reduced/off), где loop не
+// идёт: применяем p напрямую, без сглаживания, и перерисовываем один раз.
 addEventListener('scroll', () => {
-  readStage();
-  if (reduced || off) {
-    uniforms.uMouse.value.set(mouse.x, mouse.y);
-    renderer.render(scene, camera);
-  }
+  if (!reduced && !off) return;
+  const p = readStage();
+  uniforms.uScroll.value = p;
+  applyTimeline(p);
+  applyGrade(p);
+  uniforms.uMouse.value.set(mouse.x, mouse.y);
+  renderer.render(scene, camera);
 }, { passive: true });
 
 function setStatus(t) {
