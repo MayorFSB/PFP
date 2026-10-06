@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
 import { steam, washLayers, bundleLayers, sizedLayers } from './particles.js';
-import { mouse, mTarget, setStatus, halfViewW } from './core.js';
+import { mouse, mTarget, setStatus, halfViewW, getPR } from './core.js';
 import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
 
 import phase0 from './phases/phase0.js';
@@ -175,7 +175,7 @@ export function setStrands(n) {
     const total = pts.geometry.attributes.aDrop.count;
     pts.geometry.setDrawRange(0, Math.ceil(total * (drawn / MAX_STRANDS)));
   }
-  setStatus(`3D: ${drawn} нитей · ${(drawn * SEG * 2 / 1000).toFixed(1)}k треугольников`);
+  setStatus(`3D: ${drawn} нитей · ${(drawn * SEG * 2 / 1000).toFixed(1)}k треугольников · pr${getPR()}`);
 }
 
 /**

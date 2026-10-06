@@ -34,7 +34,31 @@ export function checkGlsl(label, src) {
   return o === c;
 }
 
-renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.25 : 1.5));
+// Адаптивный DPR: лесенка резкости для governor (main.js).
+// Старт — как раньше (до 1.5 десктоп / 1.25 мобайл), потолок — 2.0.
+// На dpr=1 экранах лесенка из одного значения — governor работает как раньше,
+// только нитями. Шаги дискретные: backing store пересоздаётся на каждый шаг,
+// поэтому только по cooldown, а не каждый кадр.
+const PR_MIN = 1.0;
+const PR_MAX = Math.min(devicePixelRatio || 1, 2.0);
+const PR_STEPS = [1.0, 1.25, 1.5, 2.0].filter((v) => v >= PR_MIN && v <= PR_MAX);
+let prIdx = 0;
+{
+  const initPR = Math.min(devicePixelRatio || 1, isMobile ? 1.25 : 1.5);
+  for (let i = 0; i < PR_STEPS.length; i++) if (PR_STEPS[i] <= initPR) prIdx = i;
+}
+export const getPR = () => PR_STEPS[prIdx];
+export const PR_CAP = PR_STEPS[PR_STEPS.length - 1];
+/** Шаг резкости: dir −1/+1. Возвращает true, если ступень сменилась. */
+export function stepPR(dir) {
+  const n = Math.min(Math.max(prIdx + dir, 0), PR_STEPS.length - 1);
+  if (n === prIdx) return false;
+  prIdx = n;
+  renderer.setPixelRatio(PR_STEPS[prIdx]);
+  return true;
+}
+
+renderer.setPixelRatio(PR_STEPS[prIdx]);
 renderer.setSize(innerWidth, innerHeight);
 mount.appendChild(renderer.domElement);
 

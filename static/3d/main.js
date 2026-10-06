@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {
   renderer, scene, camera, mouse, mTarget, setStatus, syncCameraAspect,
+  getPR, stepPR,
 } from './core.js';
 import { uniforms, geo } from './hair.js';
 import { sprayFast, sprayCloud, glitter, bubbles, water, foamRivulet, cutBits, steam } from './particles.js';
@@ -67,14 +68,30 @@ if (reduced || off) {
     if (now - lastChange < COOLDOWN_MS) return;
     // Цель 60fps (vsync): ниже TARGET-TOL срезаем, выше TARGET-0.5 возвращаем.
     // Порог возврата ниже 60, т.к. выше vsync fps физически не поднимается.
-    if (fps < FPS_TARGET - FPS_TOL && drawn > GOV_MIN) {
-      setStrands(drawn - Math.max(1, drawn >> 5));
-      lastChange = now;
-      console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
-    } else if (fps > FPS_TARGET - 0.5 && drawn < strandCap) {
-      setStrands(drawn + 1);
-      lastChange = now;
-      console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
+    // Порядок: вниз — СНАЧАЛА резкость (DPR дешевле нитей по fillrate),
+    // потом нити; вверх — наоборот, сначала нити до потолка, потом резкость.
+    if (fps < FPS_TARGET - FPS_TOL) {
+      if (stepPR(-1)) {
+        syncResolution(renderer.getPixelRatio());
+        setStrands(drawn); // обновить строку статуса (там текущий pr)
+        lastChange = now;
+        console.info(`[lock] fps=${fps.toFixed(1)} → pr ${getPR()}`);
+      } else if (drawn > GOV_MIN) {
+        setStrands(drawn - Math.max(1, drawn >> 5));
+        lastChange = now;
+        console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
+      }
+    } else if (fps > FPS_TARGET - 0.5) {
+      if (drawn < strandCap) {
+        setStrands(drawn + 1);
+        lastChange = now;
+        console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
+      } else if (stepPR(1)) {
+        syncResolution(renderer.getPixelRatio());
+        setStrands(drawn);
+        lastChange = now;
+        console.info(`[lock] fps=${fps.toFixed(1)} → pr ${getPR()}`);
+      }
     }
   }
 
@@ -100,7 +117,8 @@ if (reduced || off) {
     mouse.y += (mTarget.y - mouse.y) * mk;
     uniforms.uTime.value = t;
     uniforms.uMouse.value.set(mouse.x, mouse.y);
-    uniforms.uIntro.value = Math.min(t / 3.4, 1);
+    // Вход на 20% медленнее базовых 3.4с: все нити падают разом (~4.1с).
+    uniforms.uIntro.value = Math.min(t / 4.1, 1);
     // Сцена едет по сглаженному p, UI — по сырому (внутри readStage).
     const pRaw = readStage();
     scrollSmooth += (pRaw - scrollSmooth) * (1 - Math.exp(-dt * SCROLL_K));
