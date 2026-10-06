@@ -102,9 +102,12 @@ const BUNDLE_R = PLY_R0 + PLY_DR + PLY_THICK * 0.5;
 // центр кадра остаётся воздушным, но пучок читается объёмным.
 const WIDTH_FRAC = qn('pfp_widthfrac', 0.34, 0.30, 0.40);
 // Нити по ширине окна: 300 на 700px → 1000 на 2200px и шире.
-const strandsForWidth = (w) => Math.round(THREE.MathUtils.clamp(
-  300 + ((w - 700) / (2200 - 700)) * (1000 - 300), 300, 1000,
-));
+// Считается на голых Math, а не через THREE.MathUtils — чтобы этот модуль
+// остался без единой зависимости, включая three. ВАЖНО: clamp пишется как
+// min(max(x, lo), hi), лишний аргумент внутри max() всё ломает (так уже
+// было: Math.max(x, 300, 1000) всегда отдавал ≥1000 и потолок застрял).
+const strandsForWidth = (w) => Math.round(Math.min(Math.max(
+  300 + ((w - 700) / (2200 - 700)) * (1000 - 300), 300), 1000));
 
 const PHASE = {
   intro: [0.00, 0.08], curl: [0.08, 0.26], why: [0.26, 0.32],
