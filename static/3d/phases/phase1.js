@@ -27,8 +27,9 @@ export default {
     const q = S.clamp((p - RANGE[0]) / (RANGE[1] - RANGE[0]), 0, 1);
     // 1. грязь въедается быстро и остаётся
     uniforms.uDirt.value = S.smoothstep(q, 0.0, 0.35);
-    // жвачка влипает чуть позже появления
-    uniforms.uGum.value = S.smoothstep(q, 0.10, 0.30);
+    // Жвачка ОТКЛЮЧЕНА (не прошла визуал): uGum в нуле, пятно скрыто.
+    // Код живёт в gum.js + hair.js (маски/склейка) — вернуть одной строкой.
+    uniforms.uGum.value = 0;
     // 2. непослушность: окно 30–70%. Хаос раньше и короче: 17–37% —
     // движение не останавливается никогда, окна пересекаются.
     uniforms.uWild.value = S.smoothstep(q, 0.30, 0.40)
@@ -37,7 +38,7 @@ export default {
       * (1 - S.smoothstep(q, 0.30, 0.37));
     // 3. отпадание: 45–100%
     uniforms.uShed.value = S.smoothstep(q, 0.45, 1.0);
-    // Пятно жвачки видно, пока липнет (uGum > 0).
-    gumPts.visible = uniforms.uGum.value > 0.01;
+    // Пятно жвачки скрыто (см. выше).
+    gumPts.visible = false;
   },
 };
