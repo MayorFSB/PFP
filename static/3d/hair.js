@@ -12,7 +12,7 @@
 //    разные. Любая «фаза» в clump/разбросе это ломает.
 //  • Ширина нити ≈1–1.6 device px (PX_WIDTH=1.0 × thick × профиль 1.30→0.62,
 //    пол 1.0): линия расширяется в clip-space, потому что gl.lineWidth
-//    в WebGL зажат в 1 px. «Толстый» центр — это 1000+ перекрытий, не ширина.
+//    в WebGL зажат в 1 px. Плотный центр — это сотни перекрытий, не ширина.
 //  • clump зависит ТОЛЬКО от t (одинаков для всех нитей) — иначе плодится
 //    пересечение.
 import * as THREE from 'three';
@@ -152,6 +152,13 @@ export const uniforms = {
   uRootDark: { value: 0.22 },  // меланин у корня
   uRootLen: { value: 0.28 },
   uAmb: { value: 0.22 },
+
+  // Этап 1 «до»: грязные/непослушные/отпадают. Пишет только phases/phase1.js.
+  uDirt: { value: 0 },   // пыль и комки: вуаль + матовость
+  uGum: { value: 0 },    // жвачка в волосах (розовый комок, t≈0.55)
+  uWild: { value: 0 },   // непослушное качание паттернами (окно 30–70%)
+  uChaos: { value: 0 },  // рваный джит каждой нити (окно 17–37%)
+  uShed: { value: 0 },   // отпадание прядей (45–100%)
 };
 
 const mat = new THREE.ShaderMaterial({
@@ -172,6 +179,7 @@ const mat = new THREE.ShaderMaterial({
     attribute vec4 aSeed;
     uniform float uTime, uScroll, uWeave, uIntro, uSuccess, uPx, uHero, uCount;
     uniform float uCurl, uStraight, uPlyR0, uPlyDr, uWrap, uIronGlow, uCurlDone;
+    uniform float uDirt, uGum, uWild, uShed, uChaos;
     uniform float uGloss, uGlue, uPlyThick, uGlint, uGlintY, uGlitter, uWidthK;
     uniform vec3 uIronPos;
     uniform vec2 uMouse, uRes;
@@ -187,6 +195,9 @@ const mat = new THREE.ShaderMaterial({
     varying float vEdge;
     varying float vTip;
     varying float vThick;
+    varying float vClump;
+    varying float vGumC;
+    varying float vGumE;
 
     const float PI2 = 6.28318530718;
     const float PI = 3.14159265359;
@@ -243,7 +254,10 @@ const mat = new THREE.ShaderMaterial({
       // масштаб кадра не меняется. plyN уже посчитан по немасштабированному
       // rad, а масштаб равномерный — инвариант «нити не пересекаются» цел.
       rad *= uWidthK;
-      float turns = (0.95 + plyN * 0.55) * (1.0 - uStraight);
+      // Слабая крутка (этап 1): ~1/3 витка на всю длину вместо полных 1–1.5.
+      // Полная спираль давала «канат», который визуально выглядел слабо.
+      // Нежное переплетение + худоба braidK читаются как локон, а не верёвка.
+      float turns = (0.95 + plyN * 0.55) * (1.0 - uStraight) * (1.0 - 0.65 * uWeave);
       float th = phase * PI2 + t * turns * PI2 + uTime * 0.07;
       // clump зависит ТОЛЬКО от t — одинаков для всех нитей, поэтому
       // радиальный порядок сохраняется. Своя фаза здесь ломала бы его
@@ -264,6 +278,17 @@ const mat = new THREE.ShaderMaterial({
         -LEN,
         cs * R * 0.76 * dth + sn * dR * 0.76
       );
+
+      // Худое плетение (этап 1): навивка лишь на ~10% шире гладких волос.
+      // Было до ~2× (полуширина спирали 1.5 против 0.7 у покоя) — слишком
+      // объёмно. Масштаб равномерный по x/z, тот же для касательной —
+      // инвариант непересечения цел. При uWeave=0 множитель 1: эталон
+      // стадии 0 не тронут.
+      float braidK = mix(1.0, 0.62, uWeave);
+      curl.x *= braidK;
+      curl.z *= braidK;
+      dCurl.x *= braidK;
+      dCurl.z *= braidK;
 
       vec3 p = mix(rest, curl, uWeave);
       vec3 tang = normalize(mix(dRest, dCurl, uWeave));
@@ -297,6 +322,25 @@ const mat = new THREE.ShaderMaterial({
       float amp = (0.075 + fly * 0.10) * idle;
       p.x += (sin(w1) * 0.7 + sin(w2) * 0.3) * amp;
       p.z += (cos(w2) * 0.6 + sin(w1 * 0.5) * 0.4) * amp * 0.8;
+
+      // Непослушность (этап 1, окно 30–70% через uWild): крупные направленные
+      // волны — половины пучка (bdir) в противофазе, у каждой плеи своя фаза.
+      // Смещение поперечное, зависит только от t и плеи — радиальный порядок
+      // полос цел, визуально — «паттерны в разные стороны».
+      float wildPh = t * 3.0 - uTime * 0.9 + plyN * 3.0;
+      p.x += sin(wildPh) * bdir * 0.18 * uWild;
+      p.z += cos(wildPh * 0.8 + 1.7) * 0.12 * uWild;
+
+      // Хаос (этап 1, окно 17–37% через uChaos): высокочастотный рваный джит,
+      // у каждой нити своё направление из хэша — в отличие от wild-паттернов,
+      // где половины пучка идут строем. Движение не останавливается никогда:
+      // хаос подхватывает раньше wild и пересекается с ним.
+      float chH1 = fract(jit * 57.31) - 0.5;
+      float chH2 = fract(jit * 91.17) - 0.5;
+      float chPh = t * 23.0 + uTime * 2.6 + jit * 6.2831;
+      p.x += sin(chPh) * chH1 * 0.28 * uChaos;
+      p.z += cos(chPh * 1.3) * chH2 * 0.20 * uChaos;
+      p.y += sin(chPh * 0.7 + chH1 * 9.0) * 0.06 * uChaos;
 
       // Мытьё: нити раздвигаются и становятся прямыми (uStraight).
       // Границы = TL.washHair (НЕ PHASE.wash — контентная сетка другая).
@@ -385,6 +429,20 @@ const mat = new THREE.ShaderMaterial({
       vec3 dir = p - vec3(0.0, 0.4, -1.0);
       p += (dir / max(length(dir), 0.001)) * uSuccess * (2.2 + jit * 2.0);
 
+      // Отпадание (этап 1, 45–100% через uShed): до 10% нитей с малым хэшем
+      // рвутся КУСКАМИ разной длины — точка отрыва своя (от коротких
+      // кончиков до длинных прядей). Кусок летит вниз с ускорением и вбок,
+      // растворяется в полёте. Верх пряди остаётся на месте.
+      float shedH = fract(jit * 13.73);
+      float sp = clamp((uShed * 0.10 - shedH) / 0.02, 0.0, 1.0);
+      float breakT = 0.30 + fract(shedH * 7.17) * 0.62;
+      float piece = smoothstep(breakT - 0.02, breakT + 0.02, t);
+      float pieceLen = 1.0 - breakT;
+      p.y -= piece * sp * sp * (1.5 + pieceLen * 4.0);
+      float sideDir = fract(shedH * 3.3) < 0.5 ? -1.0 : 1.0;
+      p.x += piece * sp * sideDir * (0.3 + fract(shedH * 5.9) * 1.1);
+      p.z += piece * sp * cos(shedH * 44.0) * 0.4;
+
       // ---- Видимость нити ------------------------------------------------
       // Вход: нити ПАДАЮТ сверху — вся прядь смещена вверх и оседает.
       // drop² — ease-out: быстро в начале, мягкая посадка в конце.
@@ -416,7 +474,7 @@ const mat = new THREE.ShaderMaterial({
       float finale = smoothstep(${g(TL.finale[0])}, ${g(TL.finale[1])}, uScroll);
       float keep = mix(1.0, isHero, finale);
 
-      vAlpha = reveal * keep * lenMask * (1.0 - fall * 0.92);
+      vAlpha = reveal * keep * lenMask * (1.0 - fall * 0.92) * (1.0 - piece * sp);
       // Кончик растворяется: стохастический discard поредеет к концу нити.
       vAlpha *= 0.30 + 0.70 * vTip;
       // Входной гейт: при uIntro=0 строго ноль — страховка поверх шторки.
@@ -434,7 +492,33 @@ const mat = new THREE.ShaderMaterial({
       // ---- Расширение линии в clip-space (2–3 px) -------------------------
       // Толщина сужается к кончику (мейнстрим волос — не труба), но не ниже
       // ~1px: субпиксельные нити превращаются в dither-крап.
-      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4), 1.0);
+      // Комки грязи/пыли (этап 1): ~7% сегментов утолщены. Хэш от
+      // (нить, кусок) — комки сидят на фиксированных местах пряди.
+      float clumpH = fract(sin(jit * 91.7 + floor(t * 14.0) * 17.3) * 43758.5453);
+      vClump = step(0.916, clumpH) * uDirt;
+      // Жвачка (этап 1): размазанное пятно — налепили и растянули.
+      //   12% прядей склеены (|jit−0.5|<0.06), высота ~10% страницы
+      //   (Δt≈0.06 ≈ 1 world при длине 17.5), ширина пятна ~8% ширины волос.
+      //   Края грубые засохшие (рваный хэш), центр тянется тонко и местами
+      //   полупрозрачен (дыры). Цвет и глянец — во fragment.
+      // Якорь — СЛЕВА ВНУТРИ массы: фаза пряди ~0.5 (cos(phase·2π) < 0).
+      // Не jit-нить (та гуляла где попало) и не кончики, а сгусток в массиве.
+      // Шейдерный комок движется вместе с волосами сам по себе — отдельная
+      // система частиц дала бы рассинхрон с плетением и падением.
+      float gS = 1.0 - smoothstep(0.03, 0.09, abs(phase - 0.5));
+      float gT = 1.0 - smoothstep(0.02, 0.035, abs(t - 0.55));
+      float gAmt = gS * gT * uGum;
+      float gRagh = fract(sin(floor(jit * 90.0) * 12.9 + floor(t * 160.0) * 78.2) * 43758.5453);
+      float gEdge = gAmt * smoothstep(0.35, 0.75, gRagh + gS * 0.25);
+      float gCore = gAmt * (1.0 - gEdge);
+      float gHole = gCore * step(0.72, fract(sin(jit * 371.0 + floor(t * 220.0) * 11.0) * 24634.6));
+      vGumC = gCore;
+      vGumE = gEdge;
+      // Ширина: корка толстая, тянущийся центр тоньше.
+      float gumW = 1.0 + gEdge * 2.4 + gCore * 0.6;
+      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4) * (1.0 + vClump * 1.3) * gumW, 1.0);
+      // Дыры в тянущемся центре: местами волос просвечивает сквозь жвачку.
+      vAlpha *= 1.0 - gHole * 0.85;
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
       vec3 tanView = normalize(mat3(modelViewMatrix) * tang);
       vTan = tanView;
@@ -446,6 +530,8 @@ const mat = new THREE.ShaderMaterial({
 
       // Спекляр Кайия–Кая переносим во fragment, здесь считаем «сухость/мокрость»
       vSpec = (1.0 - wet * 0.55) + lacq * 0.9 + wave * 0.35 + uSuccess * 0.8;
+      // Грязные волосы матовые: общий блик прибивается почти вдвое.
+      vSpec *= 1.0 - uDirt * 0.45;
 
       vec4 clip = projectionMatrix * mv;
       vec4 clipT = projectionMatrix * vec4(mv.xyz + tanView, 1.0);
@@ -463,6 +549,7 @@ const mat = new THREE.ShaderMaterial({
   fragmentShader: `    uniform vec3 uLightA, uLightB;
     uniform vec2 uMouse;
     uniform float uGlow, uPx, uTime;
+    uniform float uDirt, uGum;
     uniform float uShiftR, uShiftTRT, uExpR, uExpTRT, uGainR, uGainTRT;
     uniform float uMelanin, uRedness, uMelJitter;
     uniform float uScatter, uDensity, uRootDark, uRootLen, uAmb;
@@ -485,6 +572,9 @@ const mat = new THREE.ShaderMaterial({
     varying float vEdge;
     varying float vTip;
     varying float vThick;
+    varying float vClump;
+    varying float vGumC;
+    varying float vGumE;
 
     // Chiang 2016: коэффициенты поглощения пигментов.
     // σ_a = eumelanin·mel + pheomelanin·redness, цвет волоса = exp(-σ_a·k).
@@ -541,6 +631,9 @@ const mat = new THREE.ShaderMaterial({
                        fract(vSeed * 3.77) - 0.5,
                        fract(vSeed * 5.13) - 0.5);
       base *= 1.0 + hueJ * 0.06;
+      // Пыльная вуаль (этап 1): общий тон к серо-коричневому, убивает глубину
+      // цвета. Комки (vClump) красятся отдельно ниже, здесь только налёт.
+      base = mix(base, vec3(0.42, 0.36, 0.29), uDirt * 0.42);
 
       // ---- Нормаль цилиндрической нити -----------------------------------
       // Лента развёрнута к камере, поэтому нормаль строится из касательной и
@@ -598,7 +691,15 @@ const mat = new THREE.ShaderMaterial({
       float depthDim = mix(0.34, 1.0, depth * depth);
 
       vec3 col = base * atten * (diffuse + multi + ambient) * depthDim;
-      col += specR + specTRT + specTT;
+      // Комки и корка жвачки матовые: зеркальный лепесток на них не играет.
+      col += (specR + specTRT + specTT) * (1.0 - vClump) * (1.0 - vGumE * 0.9);
+      // Комки грязи: тёмные, тон зависит от нити (не плоская заливка).
+      col = mix(col, vec3(0.16, 0.13, 0.10) * (0.7 + 0.3 * vSeed), vClump * 0.85);
+      // Жвачка: засохшая корка по краям (тёмная, матовая) и тянущийся
+      // глянцевый центр. Блик на корке убит, в центре — розовый глянец.
+      col = mix(col, vec3(0.42, 0.27, 0.30), vGumE * 0.9);
+      col = mix(col, vec3(0.93, 0.42, 0.60) * (0.65 + 0.35 * vSpec), vGumC);
+      col += vec3(1.0, 0.85, 0.92) * vGumC * 0.30 * vSpec;
 
       // Контактное затенение у корня: первые 12% длины в тени скальпа.
       col *= mix(0.45, 1.0, smoothstep(0.0, 0.12, vT));
