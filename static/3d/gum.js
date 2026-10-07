@@ -20,7 +20,7 @@ import { scene } from './core.js';
 import { geo, uniforms } from './hair.js';
 import { TOP, LEN, TL, g } from './config.js';
 
-const COUNT = 220;
+const COUNT = 520;
 const fr = (x) => x - Math.floor(x);
 
 // Отбор якорей: середина массы (t 0.50–0.60), левая сторона (фаза ~0.5),
@@ -62,15 +62,14 @@ for (let k = 0; k < N; k++) {
   const ox = gauss();
   const oy = gauss();
   const oz = gauss();
-  gOff[k * 3] = ox * 0.22;
-  gOff[k * 3 + 1] = oy * 0.50;
-  // Вперёд к зрителю: пятно живёт на переднем плане поверх связи.
-  gOff[k * 3 + 2] = oz * 0.28 + 0.22;
+  gOff[k * 3] = ox * 0.16;
+  gOff[k * 3 + 1] = oy * 0.55;
+  gOff[k * 3 + 2] = oz * 0.22 + 0.30;
   // Тон: рваный край — корка, середина — глянец.
   const rim = Math.min(1, (Math.abs(ox) + Math.abs(oy) * 0.7 + Math.abs(oz)) * 0.9
     + Math.random() * 0.25);
   gTone[k] = rim > 0.62 ? 1 : 0;
-  gSize[k] = 0.08 + Math.random() * 0.10;
+  gSize[k] = 0.05 + Math.random() * 0.07;
 }
 
 const ggeo = new THREE.BufferGeometry();
@@ -98,13 +97,13 @@ const gumMat = new THREE.ShaderMaterial({
     uGumZ: uniforms.uGumZ,
     uViewportH: { value: 800 },
     uFovHalf: { value: THREE.MathUtils.degToRad(48 * 0.5) },
-    uGumA: { value: 0.72 },
+    uGumA: { value: 0.85 },
   },
   transparent: true,
   depthWrite: false,
   // Передний план: пятно рисуется поверх волос. Пятно сидит спереди массы
   // (+z bias в aOff), позади него ничего нет — артефактов просвечивания нет.
-  depthTest: false,
+  depthTest: true,
   blending: THREE.NormalBlending,
   vertexShader: `
     attribute float aT;
@@ -174,8 +173,8 @@ const gumMat = new THREE.ShaderMaterial({
       float gS = 1.0 - smoothstep(0.03, 0.09, abs(phase - 0.5));
       float gT = 1.0 - smoothstep(0.02, 0.035, abs(t - 0.55));
       float gAmt = gS * gT * uGum;
-      p.x = mix(p.x, uGumX, gAmt * 0.85);
-      p.z = mix(p.z, uGumZ, gAmt * 0.85);
+      p.x = mix(p.x, uGumX, gAmt * 0.30);
+      p.z = mix(p.z, uGumZ, gAmt * 0.30);
       // Облако — ПОСЛЕ склейки, иначе mix ужмёт смещения на 85%.
       p += aOff;
       vTone = aTone;
@@ -191,14 +190,25 @@ const gumMat = new THREE.ShaderMaterial({
     varying float vSeed;
     void main() {
       if (uGum < 0.01) discard;
-      float d = length(gl_PointCoord - vec2(0.5)) * 2.0;
-      float disc = 1.0 - smoothstep(0.55, 1.0, d);
+      // Неправильная вытянутая форма: эллипс вдоль волоса (x узко) + рваный
+      // край по 5 угловым секторам. Каждая крупинка — мазок, их union —
+      // сплошная размазня с живой кромкой. Плотное перекрытие 520 мелких и
+      // есть «упругая связь»: зазоров нет, пятно держится единым.
+      vec2 pc = gl_PointCoord - vec2(0.5);
+      float ang = atan(pc.y, pc.x);
+      float sec = floor((ang / 6.2831853 + 0.5) * 5.0);
+      float wob = fract(sin(sec * 127.1 + vSeed * 311.7) * 43758.5453);
+      float rr = length(vec2(pc.x * 2.6, pc.y * 0.9)) * 2.0;
+      float edge = 0.55 + 0.65 * wob;
+      float disc = 1.0 - smoothstep(edge * 0.45, edge, rr);
       if (disc < 0.01) discard;
-      // Середина — розовый глянец с бликом, край — тёмная корка.
-      vec3 gloss = vec3(0.93, 0.42, 0.60) + vec3(0.25) * (1.0 - d) * (1.0 - vTone);
+      vec3 gloss = vec3(0.93, 0.42, 0.60);
       vec3 crust = vec3(0.42, 0.27, 0.30);
       vec3 col = mix(gloss, crust, vTone * 0.9);
-      float a = disc * uGumA * mix(0.55, 0.85, vTone);
+      // Глянцевая дорожка вдоль мазка, яркость своя у крупинки.
+      float gl = exp(-pow(pc.x * 4.5, 2.0)) * (0.35 + 0.65 * fract(vSeed * 7.7));
+      col += vec3(1.0, 0.92, 0.96) * gl * disc * (1.0 - vTone) * 0.9;
+      float a = disc * uGumA * mix(0.50, 0.80, vTone);
       gl_FragColor = vec4(col, a);
     }`,
 });
