@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { uniforms } from '../hair.js';
 import { PHASE } from '../config.js';
+import { gumPts } from '../gum.js';
 
 const RANGE = PHASE.curl; // [0.08, 0.26] — стадия «локон»
 
@@ -36,5 +37,7 @@ export default {
       * (1 - S.smoothstep(q, 0.30, 0.37));
     // 3. отпадание: 45–100%
     uniforms.uShed.value = S.smoothstep(q, 0.45, 1.0);
+    // Пятно жвачки видно, пока липнет (uGum > 0).
+    gumPts.visible = uniforms.uGum.value > 0.01;
   },
 };

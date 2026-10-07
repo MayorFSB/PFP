@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
 import { steam, washLayers, bundleLayers, sizedLayers } from './particles.js';
 import { mouse, mTarget, setStatus, halfViewW, getPR } from './core.js';
+import { syncGumSize } from './gum.js';
 import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
 
 import phase0 from './phases/phase0.js';
@@ -212,6 +213,7 @@ export function syncResolution(pr) {
   uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   // gl_PointSize считается в CSS-пикселях
   for (const pts of sizedLayers()) pts.material.uniforms.uViewportH.value = innerHeight;
+  syncGumSize(innerHeight);
   syncWidth();
 }
 

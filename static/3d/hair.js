@@ -156,6 +156,8 @@ export const uniforms = {
   // Этап 1 «до»: грязные/непослушные/отпадают. Пишет только phases/phase1.js.
   uDirt: { value: 0 },   // пыль и комки: вуаль + матовость
   uGum: { value: 0 },    // жвачка в волосах (розовый комок, t≈0.55)
+  uGumX: { value: -0.55 }, // ось склейки: слева внутри массы…
+  uGumZ: { value: 0.45 },  // …и к переднему плану (передняя поверхность ~1.0)
   uWild: { value: 0 },   // непослушное качание паттернами (окно 30–70%)
   uChaos: { value: 0 },  // рваный джит каждой нити (окно 17–37%)
   uShed: { value: 0 },   // отпадание прядей (45–100%)
@@ -180,6 +182,7 @@ const mat = new THREE.ShaderMaterial({
     uniform float uTime, uScroll, uWeave, uIntro, uSuccess, uPx, uHero, uCount;
     uniform float uCurl, uStraight, uPlyR0, uPlyDr, uWrap, uIronGlow, uCurlDone;
     uniform float uDirt, uGum, uWild, uShed, uChaos;
+    uniform float uGumX, uGumZ;
     uniform float uGloss, uGlue, uPlyThick, uGlint, uGlintY, uGlitter, uWidthK;
     uniform vec3 uIronPos;
     uniform vec2 uMouse, uRes;
@@ -230,6 +233,12 @@ const mat = new THREE.ShaderMaterial({
       float lenF = 0.62 + fract(jit * 5.9) * 0.38;    // разная длина
       float wf = 0.70 + fract(jit * 2.3) * 0.70;      // своя частота колебаний
       float bdir = fract(jit * 7.7) < 0.5 ? -1.0 : 1.0;
+
+      // Жвачка: якорь слева внутри массы (фаза ~0.5). Маски считаются ЗДЕСЬ,
+      // потому что нужны дважды: склейке (ниже) и комку (у ширины).
+      float gS = 1.0 - smoothstep(0.03, 0.09, abs(phase - 0.5));
+      float gT = 1.0 - smoothstep(0.02, 0.035, abs(t - 0.55));
+      float gAmt = gS * gT * uGum;
 
       vec3 rest = position;
       vec3 dRest = vec3(0.0, -LEN, 0.0);
@@ -443,6 +452,14 @@ const mat = new THREE.ShaderMaterial({
       p.x += piece * sp * sideDir * (0.3 + fract(shedH * 5.9) * 1.1);
       p.z += piece * sp * cos(shedH * 44.0) * 0.4;
 
+      // Склейка жвачкой: пряди жёстко стягиваются к вертикальной оси комка.
+      // Ось в мировых (uGumX/uGumZ), высота та же (p.y) — связь не рвётся
+      // ни плетением, ни хаосом: последующее (падение входа, шторка) смещает
+      // связь целиком. Касательную не правим: зона матовая/розовая, блик там
+      // всё равно убит или перекрашен.
+      p.x = mix(p.x, uGumX, gAmt * 0.85);
+      p.z = mix(p.z, uGumZ, gAmt * 0.85);
+
       // ---- Видимость нити ------------------------------------------------
       // Вход: нити ПАДАЮТ сверху — вся прядь смещена вверх и оседает.
       // drop² — ease-out: быстро в начале, мягкая посадка в конце.
@@ -497,17 +514,9 @@ const mat = new THREE.ShaderMaterial({
       float clumpH = fract(sin(jit * 91.7 + floor(t * 14.0) * 17.3) * 43758.5453);
       vClump = step(0.916, clumpH) * uDirt;
       // Жвачка (этап 1): размазанное пятно — налепили и растянули.
-      //   12% прядей склеены (|jit−0.5|<0.06), высота ~10% страницы
-      //   (Δt≈0.06 ≈ 1 world при длине 17.5), ширина пятна ~8% ширины волос.
-      //   Края грубые засохшие (рваный хэш), центр тянется тонко и местами
-      //   полупрозрачен (дыры). Цвет и глянец — во fragment.
-      // Якорь — СЛЕВА ВНУТРИ массы: фаза пряди ~0.5 (cos(phase·2π) < 0).
-      // Не jit-нить (та гуляла где попало) и не кончики, а сгусток в массиве.
-      // Шейдерный комок движется вместе с волосами сам по себе — отдельная
-      // система частиц дала бы рассинхрон с плетением и падением.
-      float gS = 1.0 - smoothstep(0.03, 0.09, abs(phase - 0.5));
-      float gT = 1.0 - smoothstep(0.02, 0.035, abs(t - 0.55));
-      float gAmt = gS * gT * uGum;
+      // gS/gT/gAmt посчитаны в начале main (нужны были склейке выше).
+      // Края грубые засохшие (рваный хэш), центр тянется тонко и местами
+      // полупрозрачен (дыры). Цвет и глянец — во fragment.
       float gRagh = fract(sin(floor(jit * 90.0) * 12.9 + floor(t * 160.0) * 78.2) * 43758.5453);
       float gEdge = gAmt * smoothstep(0.35, 0.75, gRagh + gS * 0.25);
       float gCore = gAmt * (1.0 - gEdge);
