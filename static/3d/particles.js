@@ -423,8 +423,7 @@ const streamFrag = `
   if (a < 0.004) discard;
   gl_FragColor = vec4(col, a);
 `;
-export const streams = makePoints(qn('pfp_streams', 150, 0, 2000), streamFrag, {
-  size: 0.42, sizePow: 1.2, sizeMin: 0.55,
+export const streams = makePoints(qn('pfp_streams', 150, 0, 2000), streamFrag, {  size: 0.42, sizePow: 1.2, sizeMin: 0.55,
   span: LEN * 0.92, renderOrder: 3,
   vert: `
   // Внутри массы: радиус до 0.55 от оси (поверхность пучка ~0.6),
@@ -434,6 +433,33 @@ export const streams = makePoints(qn('pfp_streams', 150, 0, 2000), streamFrag, {
   float rr = pow(aDrop.z, 0.7) * 0.55;
   float ang = aDrop.x * 6.2831853 + uTime * 0.05;
   p = vec3(cos(ang) * rr * uBundleK, y, sin(ang) * rr * uBundleK * 0.85);
+  vLife = 1.0;
+  `,
+});
+
+// ---- Этап 2, система 5: мист — взвесь брызг вокруг пучка ------------------
+// Крошечные капли в воздухе из референса «душ»: медленный дрейф, мерцание,
+// альфа низкая. Только оболочка вокруг волос (1.1–2.7 от оси), не внутри.
+const mistFrag = `
+  vec2 uv = gl_PointCoord * 2.0 - 1.0;
+  float r = length(uv);
+  if (r > 1.0) discard;
+  float soft = 1.0 - smoothstep(0.0, 1.0, r);
+  soft *= soft;
+  float tw = 0.65 + 0.35 * sin(uTime * 0.9 + vSeed * 40.0);
+  gl_FragColor = vec4(vec3(0.70, 0.80, 0.90), soft * 0.15 * tw * uWash);
+`;
+export const mist = makePoints(qn('pfp_mist', 300, 0, 2000), mistFrag, {
+  size: 0.07, sizePow: 3.0, sizeMin: 0.25,
+  span: LEN * 0.92, renderOrder: 2,
+  vert: `
+  float u = fract(aDrop.y + uTime * 0.008);
+  float y = uTop - u * uSpan + cos(uTime * 0.11 + aDrop.z * 25.0) * 0.10;
+  float rr = (1.1 + aDrop.z * 1.6) * uBundleK;
+  float ang = aDrop.x * 6.2831853 + sin(uTime * 0.10 + aDrop.w * 20.0) * 0.35;
+  p = vec3(cos(ang) * rr + sin(uTime * 0.13 + aDrop.x * 30.0) * 0.12,
+           y,
+           sin(ang) * rr * 0.85);
   vLife = 1.0;
   `,
 });
@@ -592,7 +618,7 @@ for (const [pts, jetLen, spread, rise, brake, fadeEnd] of [
 }
 
 // Группы слоёв. Порядок объявления = порядок обхода в syncResolution.
-export const washLayers = () => [bubbles, water, foamRivulet, streams];
+export const washLayers = () => [bubbles, water, foamRivulet, streams, mist];
 // Слои, чей поперечный радиус обязан ехать вместе с шириной пучка
 export const bundleLayers = () => [...washLayers(), cutBits, glitter];
 // Слои, которым нужен gl_PointSize в CSS-пикселях при resize
