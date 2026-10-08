@@ -14,7 +14,7 @@
 // принадлежит — он идёт через resetShared + вклад, а не через присваивание.
 import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
-import { steam, washLayers, bundleLayers, sizedLayers } from './particles.js';
+import { steam, washLayers, bundleLayers, sizedLayers, bubbles } from './particles.js';
 import { mouse, mTarget, setStatus, halfViewW, getPR } from './core.js';
 import { syncGumSize } from './gum.js';
 import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
@@ -209,11 +209,19 @@ export function syncWidth() {
   document.documentElement.style.setProperty('--center', `${px}px`);
 }
 
+// База максимального размера пузырей: читается один раз (там уже сидит
+// ?pfp_bubblesize, если задан) и дальше только масштабируется от ширины.
+let bubbleBase = 0;
+
 export function syncResolution(pr) {
   uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   // gl_PointSize считается в CSS-пикселях
   for (const pts of sizedLayers()) pts.material.uniforms.uViewportH.value = innerHeight;
   syncGumSize(innerHeight);
+  // Пузыри — к ширине экрана: на широком мониторе мировые 0.40 смотрятся
+  // мелко, на телефоне — огромно. Пол 0.55, чтобы не схлопнулись в точку.
+  if (!bubbleBase) bubbleBase = bubbles.material.uniforms.uSize.value;
+  bubbles.material.uniforms.uSize.value = bubbleBase * Math.max(innerWidth / 1920, 0.55);
   syncWidth();
 }
 
