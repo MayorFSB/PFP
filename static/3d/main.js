@@ -58,6 +58,8 @@ if (reduced || off) {
   let frames = 0;
   let fpsAcc = 0;
   let lastChange = 0;
+  let prDown = 0;
+  let prUp = 0;
   let last = performance.now();
   const t0 = last;
   let scrollSmooth = 0;
@@ -71,30 +73,38 @@ if (reduced || off) {
     if (now - lastChange < COOLDOWN_MS) return;
     // Цель 60fps (vsync): ниже TARGET-TOL срезаем, выше TARGET-0.5 возвращаем.
     // Порог возврата ниже 60, т.к. выше vsync fps физически не поднимается.
-    // Порядок: вниз — СНАЧАЛА резкость (DPR дешевле нитей по fillrate),
-    // потом нити; вверх — наоборот, сначала нити до потолка, потом резкость.
+    // Антидёрганье PR: нити реагируют сразу, а резкость — только после 3
+    // подряд плохих/хороших окон (~3с). Иначе fps на границе порога гоняет
+    // pr 1.0↔1.25 туда-сюда и каждый кадр с разным скейлом.
+    // Порядок: вниз — сначала нити, потом резкость; вверх — наоборот.
     if (fps < FPS_TARGET - FPS_TOL) {
-      if (stepPR(-1)) {
+      prDown++; prUp = 0;
+      if (drawn > GOV_MIN) {
+        setStrands(drawn - Math.max(1, drawn >> 5));
+        lastChange = now;
+        console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
+      } else if (prDown >= 3 && stepPR(-1)) {
+        prDown = 0;
         syncResolution(renderer.getPixelRatio());
         setStrands(drawn); // обновить строку статуса (там текущий pr)
         lastChange = now;
         console.info(`[lock] fps=${fps.toFixed(1)} → pr ${getPR()}`);
-      } else if (drawn > GOV_MIN) {
-        setStrands(drawn - Math.max(1, drawn >> 5));
-        lastChange = now;
-        console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
       }
     } else if (fps > FPS_TARGET - 0.5) {
+      prUp++; prDown = 0;
       if (drawn < strandCap) {
         setStrands(drawn + 1);
         lastChange = now;
         console.info(`[lock] fps=${fps.toFixed(1)} → нитей ${drawn}`);
-      } else if (stepPR(1)) {
+      } else if (prUp >= 3 && stepPR(1)) {
+        prUp = 0;
         syncResolution(renderer.getPixelRatio());
         setStrands(drawn);
         lastChange = now;
         console.info(`[lock] fps=${fps.toFixed(1)} → pr ${getPR()}`);
       }
+    } else {
+      prDown = 0; prUp = 0;
     }
   }
 

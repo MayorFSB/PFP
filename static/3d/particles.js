@@ -95,6 +95,10 @@ export function makePoints(count, fragBody, cfg) {
       uniform float uSpeedA, uSpeedB, uSpin, uCling;
       uniform float uTop, uSpan, uRadius, uViewportH, uFovHalf;
       uniform float uBundleK;
+      // Дизайн-код мытья (look-wash.json): объявляем здесь, чтобы не трогать
+      // общий шаблон ради каждой системы. Системы без этих полей их игнорят
+      // (GLSL-декфолт 0), значения кладёт phase2.
+      uniform float uDripShare;
       uniform float uSnip, uScissorX, uScissorY, uIronFocus;
       uniform vec3 uIronPos, uNozzle, uDir;
       uniform float uJetLen, uSpread, uRise, uBrake, uFadeEnd, uLacquer;
@@ -121,6 +125,8 @@ export function makePoints(count, fragBody, cfg) {
       uniform float uTime;
       varying float vLife;
       varying float vSeed;
+      uniform float uStreamA;
+      uniform float uMistA;
       void main() {
         // uGlitter обязателен в гейте: glitter делит с остальными системами
         // только uGlitter, а его uWash/uSteam/uCut/uLacquer — локальные нули,
@@ -292,8 +298,8 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   vert: `
   // Сверху много, снизу меньше: pow(>1) сдвигает распределение к верху.
   float u = pow(aDrop.y, 2.4);
-  // 55% — стекающие капли: вода бежит по волосам, а не висит бусинами.
-  float isDrip = step(0.45, aDrop.x);
+  // 55% — стекающие капли: доля из дизайн-кода (uDripShare).
+  float isDrip = step(uDripShare, aDrop.x);
   u = mix(u, fract(aDrop.y + uTime * (0.05 + aDrop.w * 0.07)), isDrip);
   vLife = isDrip;
 
@@ -308,8 +314,9 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   // Стекающие ×1.3 (ручейки), плюс крупнее к фронту — там свет и глаз.
   float front = cos(ang);
   sz *= (1.0 + isDrip * 0.30) * (0.85 + front * 0.30);
-`,
+  `,
 });
+water.material.uniforms.uDripShare = { value: 0.45 };
 
 // ---- Этап 2, система 3: белая густая пена ОБЛАКАМИ ----------------------
 // aDrop.xyz — смещение частицы внутри облака, aDrop.w — разброс размера.
@@ -419,7 +426,7 @@ const streamFrag = `
   float ends = 1.0 - smoothstep(0.55, 1.0, abs(uv.y));
   float core = exp(-pow(uv.x * 6.0, 2.0));
   vec3 col = vec3(0.72, 0.82, 0.92) + vec3(0.28) * core;
-  float a = line * ends * (0.18 + 0.22 * fract(vSeed * 5.0)) * uWash;
+  float a = line * ends * (0.18 + 0.22 * fract(vSeed * 5.0)) * uWash * uStreamA;
   if (a < 0.004) discard;
   gl_FragColor = vec4(col, a);
 `;
@@ -436,6 +443,7 @@ export const streams = makePoints(qn('pfp_streams', 150, 0, 2000), streamFrag, {
   vLife = 1.0;
   `,
 });
+streams.material.uniforms.uStreamA = { value: 1 };
 
 // ---- Этап 2, система 5: мист — взвесь брызг вокруг пучка ------------------
 // Крошечные капли в воздухе из референса «душ»: медленный дрейф, мерцание,
@@ -447,7 +455,7 @@ const mistFrag = `
   float soft = 1.0 - smoothstep(0.0, 1.0, r);
   soft *= soft;
   float tw = 0.65 + 0.35 * sin(uTime * 0.9 + vSeed * 40.0);
-  gl_FragColor = vec4(vec3(0.70, 0.80, 0.90), soft * 0.15 * tw * uWash);
+  gl_FragColor = vec4(vec3(0.70, 0.80, 0.90), soft * 0.15 * tw * uWash * uMistA);
 `;
 export const mist = makePoints(qn('pfp_mist', 300, 0, 2000), mistFrag, {
   size: 0.07, sizePow: 3.0, sizeMin: 0.25,
@@ -463,6 +471,7 @@ export const mist = makePoints(qn('pfp_mist', 300, 0, 2000), mistFrag, {
   vLife = 1.0;
   `,
 });
+mist.material.uniforms.uMistA = { value: 1 };
 
 // ---- Пар: задний фон на мытье и сильно на укладке (этапы 2 и 4) ---------
 const steamFrag = `

@@ -153,6 +153,10 @@ export const uniforms = {
   uRootLen: { value: 0.28 },
   uAmb: { value: 0.22 },
 
+  // Мокрый вид (этап 2, из look-wash.json через phase2).
+  uWetDarken: { value: 0.35 }, // потемнение мокрых
+  uWetGloss: { value: 0.8 },   // усиление узкого R-блика мокрых
+
   // Этап 1 «до»: грязные/непослушные/отпадают. Пишет только phases/phase1.js.
   uDirt: { value: 0 },   // пыль и комки: вуаль + матовость
   uGum: { value: 0 },    // жвачка в волосах (розовый комок, t≈0.55)
@@ -201,6 +205,7 @@ const mat = new THREE.ShaderMaterial({
     varying float vClump;
     varying float vGumC;
     varying float vGumE;
+    varying float vWet;
 
     const float PI2 = 6.28318530718;
     const float PI = 3.14159265359;
@@ -433,6 +438,7 @@ const mat = new THREE.ShaderMaterial({
       // он держится до конца страницы.
       float lacq = max(smoothstep(${g(TL.lacq[0])}, ${g(TL.lacq[1])}, uScroll), uGloss);
       float wet = wash;
+      vWet = wash;
 
       // Салют
       vec3 dir = p - vec3(0.0, 0.4, -1.0);
@@ -559,6 +565,7 @@ const mat = new THREE.ShaderMaterial({
     uniform vec2 uMouse;
     uniform float uGlow, uPx, uTime;
     uniform float uDirt, uGum;
+    uniform float uWetDarken, uWetGloss;
     uniform float uShiftR, uShiftTRT, uExpR, uExpTRT, uGainR, uGainTRT;
     uniform float uMelanin, uRedness, uMelJitter;
     uniform float uScatter, uDensity, uRootDark, uRootLen, uAmb;
@@ -584,6 +591,7 @@ const mat = new THREE.ShaderMaterial({
     varying float vClump;
     varying float vGumC;
     varying float vGumE;
+    varying float vWet;
 
     // Chiang 2016: коэффициенты поглощения пигментов.
     // σ_a = eumelanin·mel + pheomelanin·redness, цвет волоса = exp(-σ_a·k).
@@ -643,6 +651,8 @@ const mat = new THREE.ShaderMaterial({
       // Пыльная вуаль (этап 1): общий тон к серо-коричневому, убивает глубину
       // цвета. Комки (vClump) красятся отдельно ниже, здесь только налёт.
       base = mix(base, vec3(0.42, 0.36, 0.29), uDirt * 0.42);
+      // Мокрые темнее (как на фото «душ»).
+      base *= 1.0 - vWet * uWetDarken;
 
       // ---- Нормаль цилиндрической нити -----------------------------------
       // Лента развёрнута к камере, поэтому нормаль строится из касательной и
@@ -667,7 +677,7 @@ const mat = new THREE.ShaderMaterial({
       // TRT окрашен абсорбцией волоса — это и есть золотой «второй блик».
       // Частичная десатурация, иначе чистый блонд уходит в металл.
       vec3 tintTRT = mix(base, vec3(dot(base, vec3(0.3, 0.6, 0.1))), 0.35);
-      vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR;
+      vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR * (1.0 + vWet * uWetGloss);
       vec3 specTRT = tintTRT * lobeTRT;
 
       // ---- Rim + TT: контровой свет --------------------------------------

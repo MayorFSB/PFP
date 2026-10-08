@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
 import { steam, washLayers, bundleLayers, sizedLayers, bubbles } from './particles.js';
 import { mouse, mTarget, setStatus, halfViewW, getPR, camera } from './core.js';
+import { look } from './look.js';
 import { syncGumSize } from './gum.js';
 import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
 
@@ -209,11 +210,11 @@ export function syncWidth() {
   document.documentElement.style.setProperty('--center', `${px}px`);
 }
 
-// Калибровка пузырей: на 1920px самый большой = 75px, самый маленький = 23px
-// (+50% к базовым 50/15). Считается РАЗ на resize (не на кадр): деления тут
-// можно. В шейдере только умножения (uSize*sz*pxPerUnit). Округление вверх
-// до целого пикселя — целочисленным трюком (a+b−1)/b + truncation через |0.
-// bubUser сохраняет ?pfp_bubblesize как относительный множитель.
+// Калибровка пузырей из дизайн-кода (look.bubbles): на 1920px самый большой
+// = maxPx, самый маленький = minPx. Считается РАЗ на resize (не на кадр):
+// деления тут можно. В шейдере только умножения (uSize*sz*pxPerUnit).
+// Округление вверх до целого пикселя — целочисленным трюком (a+b−1)/b +
+// truncation через |0. bubUser сохраняет ?pfp_bubblesize как множитель.
 let bubUser = 0;
 
 export function syncResolution(pr) {
@@ -222,8 +223,8 @@ export function syncResolution(pr) {
   for (const pts of sizedLayers()) pts.material.uniforms.uViewportH.value = innerHeight;
   syncGumSize(innerHeight);
   if (!bubUser) bubUser = bubbles.material.uniforms.uSize.value / 0.40;
-  const maxPx = ((75 * innerWidth + 1919) / 1920) | 0;
-  const minPx = ((23 * innerWidth + 1919) / 1920) | 0;
+  const maxPx = ((look.bubbles.maxPx * innerWidth + 1919) / 1920) | 0;
+  const minPx = ((look.bubbles.minPx * innerWidth + 1919) / 1920) | 0;
   const pxNom = innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * 11.5);
   const bu = bubbles.material.uniforms;
   bu.uSize.value = (maxPx / pxNom) * bubUser;

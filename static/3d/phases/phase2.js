@@ -15,7 +15,8 @@
 // обратно — при обычном max() оно залипло бы на 1.0 навсегда.
 import * as THREE from 'three';
 import { uniforms } from '../hair.js';
-import { steam, washLayers } from '../particles.js';
+import { steam, washLayers, streams, mist, water } from '../particles.js';
+import { look } from '../look.js';
 import { TL } from '../config.js';
 
 export default {
@@ -46,5 +47,12 @@ export default {
     // (washFx[2]) волосы чистые. Shed не трогаем: отпавшие не возвращаются.
     const clean = THREE.MathUtils.smoothstep(p, TL.washFx[0], TL.washFx[2]);
     uniforms.uDirt.value *= 1 - clean;
+
+    // Дизайн-код (look-wash.json): мокрый вид и силы систем — из JSON.
+    uniforms.uWetDarken.value = look.hair.wetDarken;
+    uniforms.uWetGloss.value = look.hair.wetGloss;
+    streams.material.uniforms.uStreamA.value = look.streams.alpha;
+    mist.material.uniforms.uMistA.value = look.mist.alpha;
+    water.material.uniforms.uDripShare.value = look.drips.share;
   },
 };
