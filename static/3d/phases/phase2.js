@@ -40,5 +40,11 @@ export default {
     steam.material.uniforms.uSteam.value = Math.max(
       steam.material.uniforms.uSteam.value, washVis * 0.35,
     );
+
+    // Смыв грязи этапа 1: фаза 1 пишет uDirt=1 залипшим (q clamp), а идём
+    // строго после неё — домножаем на gate мытья. К концу активной пены
+    // (washFx[2]) волосы чистые. Shed не трогаем: отпавшие не возвращаются.
+    const clean = THREE.MathUtils.smoothstep(p, TL.washFx[0], TL.washFx[2]);
+    uniforms.uDirt.value *= 1 - clean;
   },
 };
