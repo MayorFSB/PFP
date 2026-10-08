@@ -255,7 +255,9 @@ export const bubbles = makePoints(qn('pfp_bubbles', 270, 0, 4000), bubbleFrag, {
   float halfW = mix(0.41, 0.62, 1.0 - u);
   // Масштабируем итоговый радиус ОДИН раз. Если умножить halfW отдельно, а
   // потом ещё и r целиком, компонент от halfW получит uBundleK дважды.
-  float r = (halfW + 0.30 + aDrop.w * 0.95 + sin(t * 0.55 + aDrop.w * 18.0) * 0.13) * uBundleK;
+  // Пузыри жмутся к волосам: зазор всего ~0.15 поверх halfW (поверхность
+  // пучка ~0.6), нижняя граница 0.56 — пересечений нет, верх 1.3.
+  float r = (halfW + 0.15 + aDrop.w * 0.55 + sin(t * 0.55 + aDrop.w * 18.0) * 0.13) * uBundleK;
   float ang = (aDrop.z - 0.5) * 0.85;
   p = vec3(side * r * cos(ang), y, sin(ang) * r * 0.9);
   // Пульсация размера — пузырь «дышит»
