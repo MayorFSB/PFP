@@ -200,21 +200,45 @@ const bubbleFrag = `
   float rr = r / wob;
   if (rr > 1.0) discard;
 
-  float rim = smoothstep(0.70, 0.99, rr);
-  // Каустика — яркая дуга по нижне-левой кромке
-  float arc = smoothstep(0.78, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
-  // Тонкая плёнка: cosine palette даёт радужный ободок
-  vec3 irid = 0.5 + 0.5 * cos(6.28318530718 * (rr * 2.1 + vSeed + vec3(0.0, 0.33, 0.67)));
-  vec3 col = mix(vec3(0.09, 0.11, 0.15), irid * 0.9, rim);
-  col += vec3(1.0) * arc * 0.95;
-  col += vec3(1.0) * smoothstep(0.17, 0.0, length(uv - vec2(-0.33, 0.36))) * 0.95;
-  col += vec3(0.92) * smoothstep(0.11, 0.0, length(uv - vec2(0.30, 0.45))) * 0.60;
+  // 3 типа из того же хэша, что в vertex (vSeed = aDrop.x).
+  float btype = floor(fract(vSeed * 3.0) * 3.0);
+  vec3 col;
+  float alpha;
+  if (btype < 0.5) {
+    // Тип 0 — классика: радужный ободок, каустика снизу-слева, два блика.
+    float rim = smoothstep(0.70, 0.99, rr);
+    float arc = smoothstep(0.78, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
+    vec3 irid = 0.5 + 0.5 * cos(6.28318530718 * (rr * 2.1 + vSeed + vec3(0.0, 0.33, 0.67)));
+    col = mix(vec3(0.09, 0.11, 0.15), irid * 0.9, rim);
+    col += vec3(1.0) * arc * 0.95;
+    col += vec3(1.0) * smoothstep(0.17, 0.0, length(uv - vec2(-0.33, 0.36))) * 0.95;
+    col += vec3(0.92) * smoothstep(0.11, 0.0, length(uv - vec2(0.30, 0.45))) * 0.60;
+    float body = 1.0 - smoothstep(0.0, 0.97, rr);
+    alpha = (rim * 0.80 + arc * 0.45 + body * 0.10) * uWash;
+  } else if (btype < 1.5) {
+    // Тип 1 — молочная бусина: плотная матовая, мягкий ободок без радуги.
+    float rim1 = smoothstep(0.45, 0.98, rr);
+    float body1 = 1.0 - smoothstep(0.0, 0.9, rr);
+    col = mix(vec3(0.72, 0.78, 0.86), vec3(1.0), rim1 * 0.45 + body1 * 0.25);
+    col += vec3(1.0) * smoothstep(0.20, 0.0, length(uv - vec2(-0.30, 0.33))) * 0.55;
+    alpha = (body1 * 0.55 + rim1 * 0.45) * uWash;
+  } else {
+    // Тип 2 — капля-линза: почти прозрачное тело, тонкий яркий ободок,
+    // усиленная каустика и двойной блик.
+    float rim2 = smoothstep(0.85, 0.99, rr);
+    float arc2 = smoothstep(0.80, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
+    float body2 = 1.0 - smoothstep(0.0, 0.95, rr);
+    col = vec3(0.55, 0.62, 0.72) * body2 + vec3(1.0) * rim2 * 0.9;
+    col += vec3(1.0) * arc2 * 1.30;
+    col += vec3(1.0) * smoothstep(0.14, 0.0, length(uv - vec2(-0.33, 0.36)));
+    col += vec3(0.95) * smoothstep(0.10, 0.0, length(uv - vec2(0.30, 0.45))) * 0.70;
+    alpha = (rim2 * 0.85 + arc2 * 0.50 + body2 * 0.06) * uWash;
+  }
 
-  float body = 1.0 - smoothstep(0.0, 0.97, rr);
-  gl_FragColor = vec4(col, (rim * 0.80 + arc * 0.45 + body * 0.10) * uWash);
+  gl_FragColor = vec4(col, alpha);
 `;
 
-export const bubbles = makePoints(qn('pfp_bubbles', 90, 0, 4000), bubbleFrag, {
+export const bubbles = makePoints(qn('pfp_bubbles', 270, 0, 4000), bubbleFrag, {
   // На 82px низкочастотная гармоника контура читалась как многоугольник —
   // поэтому амплитуда ниже и 3-я гармоника взвешена.
   size: qn('pfp_bubblesize', 0.40, 0.05, 6), sizePow: 3.0, sizeMin: 0.24,
@@ -236,6 +260,10 @@ export const bubbles = makePoints(qn('pfp_bubbles', 90, 0, 4000), bubbleFrag, {
   p = vec3(side * r * cos(ang), y, sin(ang) * r * 0.9);
   // Пульсация размера — пузырь «дышит»
   sz *= 0.82 + 0.18 * sin(t * 1.25 + aDrop.x * 40.0);
+  // 3 типа: размер тоже разный (мелкие матовые / средние / крупные линзы).
+  // Тип из aDrop.x — тот же хэш во fragment (vSeed), иначе разъедутся.
+  float btype = floor(fract(aDrop.x * 3.0) * 3.0);
+  sz *= btype < 0.5 ? 0.70 : (btype < 1.5 ? 1.0 : 1.30);
 `,
 });
 

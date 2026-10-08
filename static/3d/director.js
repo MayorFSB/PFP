@@ -209,10 +209,10 @@ export function syncWidth() {
   document.documentElement.style.setProperty('--center', `${px}px`);
 }
 
-// Калибровка пузырей: на 1920px самый большой = 50px, самый маленький = 15px.
-// Считается РАЗ на resize (не на кадр): деления тут можно. В шейдере только
-// умножения (uSize*sz*pxPerUnit). Округление вверх до целого пикселя —
-// целочисленным трюком (a+b−1)/b + truncation через |0, без Math.ceil.
+// Калибровка пузырей: на 1920px самый большой = 75px, самый маленький = 23px
+// (+50% к базовым 50/15). Считается РАЗ на resize (не на кадр): деления тут
+// можно. В шейдере только умножения (uSize*sz*pxPerUnit). Округление вверх
+// до целого пикселя — целочисленным трюком (a+b−1)/b + truncation через |0.
 // bubUser сохраняет ?pfp_bubblesize как относительный множитель.
 let bubUser = 0;
 
@@ -222,8 +222,8 @@ export function syncResolution(pr) {
   for (const pts of sizedLayers()) pts.material.uniforms.uViewportH.value = innerHeight;
   syncGumSize(innerHeight);
   if (!bubUser) bubUser = bubbles.material.uniforms.uSize.value / 0.40;
-  const maxPx = ((50 * innerWidth + 1919) / 1920) | 0;
-  const minPx = ((15 * innerWidth + 1919) / 1920) | 0;
+  const maxPx = ((75 * innerWidth + 1919) / 1920) | 0;
+  const minPx = ((23 * innerWidth + 1919) / 1920) | 0;
   const pxNom = innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * 11.5);
   const bu = bubbles.material.uniforms;
   bu.uSize.value = (maxPx / pxNom) * bubUser;
