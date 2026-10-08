@@ -272,14 +272,18 @@ export const bubbles = makePoints(qn('pfp_bubbles', 270, 0, 4000), bubbleFrag, {
 // ---- Этап 2, система 2: вода в волосах ----------------------------------
 const waterFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
-  float r = length(uv);
+  // Стекающие (vLife=1) вытянуты по вертикали вдоль волоса, висячие — круглые.
+  vec2 euv = vec2(uv.x * mix(1.0, 1.8, vLife), uv.y);
+  float r = length(euv);
   if (r > 1.0) discard;
   float rim = smoothstep(0.55, 0.98, r);
-  float hi = smoothstep(0.34, 0.0, length(uv - vec2(-0.32, 0.34)));
+  float hi = smoothstep(0.34, 0.0, length(euv - vec2(-0.32, 0.34)));
   float body = 1.0 - smoothstep(0.0, 0.9, r);
   // Капля смотрит в тень снизу — преломление
   float shade = 0.55 + 0.45 * (uv.y * 0.5 + 0.5);
   vec3 col = mix(vec3(0.34, 0.38, 0.46) * shade, vec3(1.0), rim * 0.85) + hi * 0.95;
+  // Белая блик-точка на стекающих — мокрая искра из референса «душ».
+  col += vec3(1.0) * smoothstep(0.12, 0.0, length(uv - vec2(-0.32, 0.34))) * vLife * 0.8;
   gl_FragColor = vec4(col, (body * 0.55 + rim * 0.40 + hi * 0.5) * uWash);
 `;
 export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
@@ -288,8 +292,8 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   vert: `
   // Сверху много, снизу меньше: pow(>1) сдвигает распределение к верху.
   float u = pow(aDrop.y, 2.4);
-  // ~28% — стекающие капли: вода бежит по волосам, а не висит бусинами.
-  float isDrip = step(0.72, aDrop.x);
+  // 55% — стекающие капли: вода бежит по волосам, а не висит бусинами.
+  float isDrip = step(0.45, aDrop.x);
   u = mix(u, fract(aDrop.y + uTime * (0.05 + aDrop.w * 0.07)), isDrip);
   vLife = isDrip;
 
@@ -301,8 +305,9 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   float r = halfW * (0.92 + aDrop.w * 0.16);
   p = vec3(sin(ang) * r, uTop - u * uSpan, cos(ang) * r * 0.8);
   p.x += sin(uTime * 0.8 + aDrop.x * 20.0) * 0.022;
-  // Стекающие чуть крупнее — читаются как ручейки
-  sz *= 1.0 + isDrip * 0.45;
+  // Стекающие ×1.3 (ручейки), плюс крупнее к фронту — там свет и глаз.
+  float front = cos(ang);
+  sz *= (1.0 + isDrip * 0.30) * (0.85 + front * 0.30);
 `,
 });
 
