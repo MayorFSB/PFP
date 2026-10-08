@@ -404,6 +404,35 @@ export const foamRivulet = makePoints(FOAM_CLOUDS * FOAM_PER, foamFrag, {
   foamRivulet.geometry.attributes.aDrop.needsUpdate = true;
 }
 
+// ---- Этап 2, система 4: струи воды внутри массы ---------------------------
+// Проточная вода из референса «душ»: тонкие вертикальные нити стекают ВДОЛЬ
+// волос внутри пучка (не сбоку, как пузыри). Эллипс-спрайт вытянут по волосу:
+// яркое ядро + мягкие края, альфа низкая — струя, а не палка.
+const streamFrag = `
+  vec2 uv = gl_PointCoord * 2.0 - 1.0;
+  float line = exp(-pow(uv.x * 3.0, 2.0));
+  float ends = 1.0 - smoothstep(0.55, 1.0, abs(uv.y));
+  float core = exp(-pow(uv.x * 6.0, 2.0));
+  vec3 col = vec3(0.72, 0.82, 0.92) + vec3(0.28) * core;
+  float a = line * ends * (0.18 + 0.22 * fract(vSeed * 5.0)) * uWash;
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(col, a);
+`;
+export const streams = makePoints(qn('pfp_streams', 150, 0, 2000), streamFrag, {
+  size: 0.42, sizePow: 1.2, sizeMin: 0.55,
+  span: LEN * 0.92, renderOrder: 3,
+  vert: `
+  // Внутри массы: радиус до 0.55 от оси (поверхность пучка ~0.6),
+  // распределение ровное по площади. Течение вниз: u растёт со временем.
+  float u = fract(aDrop.y + uTime * (0.08 + aDrop.w * 0.10));
+  float y = uTop - u * uSpan;
+  float rr = pow(aDrop.z, 0.7) * 0.55;
+  float ang = aDrop.x * 6.2831853 + uTime * 0.05;
+  p = vec3(cos(ang) * rr * uBundleK, y, sin(ang) * rr * uBundleK * 0.85);
+  vLife = 1.0;
+  `,
+});
+
 // ---- Пар: задний фон на мытье и сильно на укладке (этапы 2 и 4) ---------
 const steamFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
@@ -558,7 +587,7 @@ for (const [pts, jetLen, spread, rise, brake, fadeEnd] of [
 }
 
 // Группы слоёв. Порядок объявления = порядок обхода в syncResolution.
-export const washLayers = () => [bubbles, water, foamRivulet];
+export const washLayers = () => [bubbles, water, foamRivulet, streams];
 // Слои, чей поперечный радиус обязан ехать вместе с шириной пучка
 export const bundleLayers = () => [...washLayers(), cutBits, glitter];
 // Слои, которым нужен gl_PointSize в CSS-пикселях при resize

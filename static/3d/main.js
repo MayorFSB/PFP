@@ -7,6 +7,7 @@ import {
 } from './core.js';
 import { uniforms, geo } from './hair.js';
 import { sprayFast, sprayCloud, glitter, bubbles, water, foamRivulet, cutBits, steam } from './particles.js';
+import { streams } from './particles.js';
 import { gumPts } from './gum.js';
 import {
   readStage, applyPhases, updateMouseGlow, setStrands, syncResolution,
@@ -184,7 +185,7 @@ window.__pfpLock = {
   // Слои частиц: uWash/uSteam/uCut живут в материалах систем, а не в общих
   // uniform'ах, и без доступа к ним их не проверить из консоли.
   sprayFast, sprayCloud, glitter, bubbles, water, foamRivulet, cutBits, steam,
-  gumPts,
+  streams, gumPts,
   get spray() {
     return [sprayFast, sprayCloud].map((p) => ({
       visible: p.visible,
