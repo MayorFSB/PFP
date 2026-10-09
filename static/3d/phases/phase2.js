@@ -8,7 +8,7 @@
 // обратно — при обычном max() оно залипло бы на 1.0 навсегда.
 import * as THREE from 'three';
 import { uniforms } from '../hair.js';
-import { steam, washLayers, streams, mist, water } from '../particles.js';
+import { steam, washLayers, streams, mist, water, dirtRinse } from '../particles.js';
 import { look } from '../look.js';
 import { TL, MAX_STRANDS, PLIES } from '../config.js';
 
@@ -86,6 +86,12 @@ export default {
       uniforms.uStains.value[i].set(st.jit, st.t, st.size * appear, rinse);
     }
     uniforms.uStainCount.value = 6;
+
+    // dirtRinse (§7.6): грязные потёки. Гейт — свой (uDirt), не uWash.
+    const dirtGate = washVis * S(p, TL.dirtRinse[0], TL.dirtRinse[1]);
+    dirtRinse.material.uniforms.uDirt.value = dirtGate;
+    dirtRinse.material.uniforms.uStainY.value.set(STAINS[0].t, STAINS[2].t, STAINS[4].t);
+    dirtRinse.visible = dirtGate > 0.01;
 
     // Дизайн-код (look-wash.json): мокрый вид и силы систем — из JSON.
     uniforms.uWetDarken.value = look.hair.wetDarken;

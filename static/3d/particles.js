@@ -100,6 +100,7 @@ export function makePoints(count, fragBody, cfg) {
       // (GLSL-декфолт 0), значения кладёт phase2.
       uniform float uDripShare;
       uniform float uWashFlow;
+      uniform vec3 uStainY;
       uniform float uSnip, uScissorX, uScissorY, uIronFocus;
       uniform vec3 uIronPos, uNozzle, uDir;
       uniform float uJetLen, uSpread, uRise, uBrake, uFadeEnd, uLacquer;
@@ -131,6 +132,7 @@ export function makePoints(count, fragBody, cfg) {
       varying float vU;
       uniform float uStreamA;
       uniform float uMistA;
+      uniform float uDirt;
       void main() {
         // uGlitter обязателен в гейте: glitter делит с остальными системами
         // только uGlitter, а его uWash/uSteam/uCut/uLacquer — локальные нули,
@@ -139,7 +141,7 @@ export function makePoints(count, fragBody, cfg) {
         // вообще. У систем без uGlitter Three.js не ставит uniform → GLSL
         // даёт дефолт 0 → их поведение не меняется.
         if (uWash < 0.01 && uSteam < 0.01 && uCut < 0.01 && uLacquer < 0.01
-            && uGlitter < 0.01) discard;
+            && uGlitter < 0.01 && uDirt < 0.01) discard;
         ${fragBody}
       }`,
   });
@@ -485,6 +487,41 @@ export const mist = makePoints(qn('pfp_mist', 300, 0, 2000), mistFrag, {
 });
 mist.material.uniforms.uMistA = { value: 1 };
 
+// ---- Этап 2, система 6: dirtRinse — грязные потёки вниз -------------------
+// Тёмные струйки смываемой грязи (§7.6): 70% стартуют на фронте воды,
+// 30% — на высотах пятен (uStainY). Вниз и в затухание у нижнего края.
+const dirtRinseFrag = `
+  vec2 uv = gl_PointCoord * 2.0 - 1.0;
+  float r = length(uv);
+  if (r > 1.0) discard;
+  float body = 1.0 - smoothstep(0.0, 0.9, r);
+  float fade = smoothstep(0.0, 0.1, vLife) * (1.0 - smoothstep(0.8, 1.0, vLife));
+  gl_FragColor = vec4(vec3(0.30, 0.25, 0.18), body * 0.5 * fade * uDirt);
+`;
+export const dirtRinse = makePoints(qn('pfp_dirtrinse', 260, 0, 1500), dirtRinseFrag, {
+  size: 0.09, sizePow: 1.5, sizeMin: 0.4,
+  span: LEN * 0.92, depthTest: false, renderOrder: 3,
+  vert: `
+  float rate = 0.10 + aDrop.w * 0.12;
+  float life = fract(aDrop.y + uTime * rate);
+  vLife = life;
+  // Фронт в u-координатах: та же формула, что wLine в hair (дисциплина TL).
+  float frontU = clamp((uTop - mix(uTop + 1.5, -11.0, uWashFlow)) / uSpan, 0.0, 1.0);
+  float useStain = step(0.7, fract(aDrop.z * 7.0));
+  float stainU = aDrop.x < 0.3 ? uStainY.x : (aDrop.x < 0.6 ? uStainY.y : uStainY.z);
+  float spawnU = mix(frontU, stainU, useStain);
+  float u = mix(spawnU, 1.05, life);
+  float y = uTop - u * uSpan;
+  float halfW = mix(0.41, 0.62, 1.0 - clamp(spawnU, 0.0, 1.0)) * uBundleK;
+  float ang = (aDrop.z - 0.5) * 1.6;
+  float r = halfW * (0.9 + aDrop.w * 0.2);
+  p = vec3(sin(ang) * r, y, cos(ang) * r * 0.8);
+  `,
+});
+dirtRinse.material.uniforms.uDirt = { value: 0 };
+dirtRinse.material.uniforms.uWashFlow = uniforms.uWashFlow;
+dirtRinse.material.uniforms.uStainY = { value: new THREE.Vector3(0.3, 0.44, 0.58) };
+
 // ---- Пар: задний фон на мытье и сильно на укладке (этапы 2 и 4) ---------
 const steamFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
@@ -639,7 +676,7 @@ for (const [pts, jetLen, spread, rise, brake, fadeEnd] of [
 }
 
 // Группы слоёв. Порядок объявления = порядок обхода в syncResolution.
-export const washLayers = () => [bubbles, water, foamRivulet, streams, mist];
+export const washLayers = () => [bubbles, water, foamRivulet, streams, mist, dirtRinse];
 // Слои, чей поперечный радиус обязан ехать вместе с шириной пучка
 export const bundleLayers = () => [...washLayers(), cutBits, glitter];
 // Слои, которым нужен gl_PointSize в CSS-пикселях при resize
