@@ -700,7 +700,7 @@ const mat = new THREE.ShaderMaterial({
       // полосы (expR→340, expTRT→60, gain ×2.3). Старое uWetGloss удалено.
       vec3 TR  = shiftTangent(T, N, uShiftR);
       vec3 TRT = shiftTangent(T, N, uShiftTRT);
-      float expR = mix(uExpR, 340.0, vWet);
+      float expR = mix(uExpR, 260.0, vWet);
       float expTRT = mix(uExpTRT, 60.0, vWet);
       float gainW = 1.0 + uWetGloss * vWet;
       float lobeR  = strandSpecular(TR,  V, uLightA, expR)   * uGainR * gainW;

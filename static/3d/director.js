@@ -19,6 +19,14 @@ import { mouse, mTarget, setStatus, halfViewW, getPR, camera } from './core.js';
 import { look } from './look.js';
 import { syncGumSize } from './gum.js';
 import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
+// Отладка ?wash=0.38: фиксирует глобальный p (игнорит скролл, UI стадий
+// замирает). Доли 0..1 как в спеке §12; qn не подходит (там parseInt).
+const washQ = (() => {
+  const raw = new URLSearchParams(location.search).get('wash');
+  if (raw === null) return -1;
+  const v = parseFloat(raw);
+  return v >= 0 && v <= 1 ? v : -1;
+})();
 
 import phase0 from './phases/phase0.js';
 import phase1 from './phases/phase1.js';
@@ -106,7 +114,7 @@ window.__pfpStage = () => ({
       salute();
     }
   }
-  return range[0] + (range[1] - range[0]) * stageLocal;
+  return washQ >= 0 ? washQ : range[0] + (range[1] - range[0]) * stageLocal;
 }
 
 /** Uniform'ы, в которые пишут несколько фаз: обнуляем перед проходом. */
