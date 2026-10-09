@@ -99,15 +99,18 @@ export function makePoints(count, fragBody, cfg) {
       // общий шаблон ради каждой системы. Системы без этих полей их игнорят
       // (GLSL-декфолт 0), значения кладёт phase2.
       uniform float uDripShare;
+      uniform float uWashFlow;
       uniform float uSnip, uScissorX, uScissorY, uIronFocus;
       uniform vec3 uIronPos, uNozzle, uDir;
       uniform float uJetLen, uSpread, uRise, uBrake, uFadeEnd, uLacquer;
       varying float vLife;
       varying float vSeed;
+      varying float vU;   // высота капли 0 (корни) → 1 (кончики); ставит только water
       void main() {
         float sz = mix(uSizeMin, 1.0, pow(aDrop.w, uSizePow));
         vSeed = aDrop.x;
         vLife = 0.5;
+        vU = 0.5;
         vec3 p = vec3(0.0);
         ${cfg.vert}
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -125,6 +128,7 @@ export function makePoints(count, fragBody, cfg) {
       uniform float uTime;
       varying float vLife;
       varying float vSeed;
+      varying float vU;
       uniform float uStreamA;
       uniform float uMistA;
       void main() {
@@ -288,6 +292,10 @@ const waterFrag = `
   // Капля смотрит в тень снизу — преломление
   float shade = 0.55 + 0.45 * (uv.y * 0.5 + 0.5);
   vec3 col = mix(vec3(0.34, 0.38, 0.46) * shade, vec3(1.0), rim * 0.85) + hi * 0.95;
+  // Чистота по высоте (§7.4): у корней вода уже чистая, к кончикам мутная
+  // (смытая грязь). Только стекающие; висячие держат базовый цвет.
+  vec3 pure = mix(vec3(0.75, 0.85, 0.95), vec3(0.42, 0.38, 0.30), vU);
+  col = mix(col, pure + hi * 0.9, vLife * 0.7);
   // Белая блик-точка на стекающих — мокрая искра из референса «душ».
   col += vec3(1.0) * smoothstep(0.12, 0.0, length(uv - vec2(-0.32, 0.34))) * vLife * 0.8;
   gl_FragColor = vec4(col, (body * 0.55 + rim * 0.40 + hi * 0.5) * uWash);
@@ -298,9 +306,12 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   vert: `
   // Сверху много, снизу меньше: pow(>1) сдвигает распределение к верху.
   float u = pow(aDrop.y, 2.4);
-  // 55% — стекающие капли: доля из дизайн-кода (uDripShare).
-  float isDrip = step(uDripShare, aDrop.x);
-  u = mix(u, fract(aDrop.y + uTime * (0.05 + aDrop.w * 0.07)), isDrip);
+  // Доля стекающих растёт с фронтом: кромка 0.72 → 0.57 к концу (§7.4).
+  // База из дизайн-кода (uDripShare), динамика от фронта.
+  float isDrip = step(uDripShare - 0.15 * uWashFlow, aDrop.x);
+  // Ускорение потока: вода visibly ускоряется, когда фронт проходит.
+  u = mix(u, fract(aDrop.y + uTime * (0.05 + aDrop.w * 0.07) * (0.6 + 0.8 * uWashFlow)), isDrip);
+  vU = u;
   vLife = isDrip;
 
   float halfW = mix(0.41, 0.62, 1.0 - clamp(u, 0.0, 1.0)) * uBundleK;
@@ -317,6 +328,7 @@ export const water = makePoints(qn('pfp_water', 480, 0, 4000), waterFrag, {
   `,
 });
 water.material.uniforms.uDripShare = { value: 0.45 };
+water.material.uniforms.uWashFlow = uniforms.uWashFlow;
 
 // ---- Этап 2, система 3: белая густая пена ОБЛАКАМИ ----------------------
 // aDrop.xyz — смещение частицы внутри облака, aDrop.w — разброс размера.
