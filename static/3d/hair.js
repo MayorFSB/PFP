@@ -154,8 +154,9 @@ export const uniforms = {
   uAmb: { value: 0.22 },
 
   // Мокрый вид (этап 2, из look-wash.json через phase2).
-  uWetDarken: { value: 0.35 }, // потемнение мокрых
-  uWetGloss: { value: 0.8 },   // усиление узкого R-блика мокрых
+  // Прямые физические параметры: boost меланина и gain зеркала.
+  uWetDarken: { value: 0.65 }, // +меланин мокрых (темнее и насыщеннее)
+  uWetGloss: { value: 1.3 },   // gain узкого R-блика мокрых
 
   // WASH v2.1: вес мокрости и фронт воды. Пишет phases/phase2.js.
   uWet: { value: 0 },       // 0 сухое → 1 мокрое (TL.wet)
@@ -590,7 +591,7 @@ const mat = new THREE.ShaderMaterial({
     uniform vec2 uMouse;
     uniform float uGlow, uPx, uTime;
     uniform float uDirt, uGum;
-    uniform float uWetDarken, uWetGloss; // legacy look-wash.json (см. §7.2)
+    uniform float uWetDarken, uWetGloss; // прямые параметры мокрости из JSON
     uniform float uWashFlow;
     uniform float uShiftR, uShiftTRT, uExpR, uExpTRT, uGainR, uGainTRT;
     uniform float uMelanin, uRedness, uMelJitter;
@@ -662,9 +663,8 @@ const mat = new THREE.ShaderMaterial({
       // У корня меланина больше — тёмный корень, как в референсах.
       float rootRamp = 1.0 - smoothstep(0.0, uRootLen, vT);
       // WASH v2.1 §7.2: мокрость — через пигмент, а не тонирование.
-      // Меланин ×(1+0.65·uWet): темнее и насыщеннее, Beer–Lambert доделывает.
-      // Старое base*=uWetDarken удалено (серая заливка запрещена спекой).
-      float mel = clamp((uMelanin + melJit + uRootDark * rootRamp) * (1.0 + 0.65 * vWet), 0.0, 1.0);
+      // uWetDarken из JSON: +меланин (темнее и насыщеннее, Beer–Lambert сам).
+      float mel = clamp((uMelanin + melJit + uRootDark * rootRamp) * (1.0 + uWetDarken * vWet), 0.0, 1.0);
       // Выцветание к кончику (солнце): пигмента к концу на ~12% меньше.
       // Физично осветляет кончики через тот же Beer–Lambert ниже.
       mel *= 1.0 - 0.12 * vT;
@@ -702,7 +702,7 @@ const mat = new THREE.ShaderMaterial({
       vec3 TRT = shiftTangent(T, N, uShiftTRT);
       float expR = mix(uExpR, 340.0, vWet);
       float expTRT = mix(uExpTRT, 60.0, vWet);
-      float gainW = 1.0 + vWet * 1.3;
+      float gainW = 1.0 + uWetGloss * vWet;
       float lobeR  = strandSpecular(TR,  V, uLightA, expR)   * uGainR * gainW;
       float lobeTRT = strandSpecular(TRT, V, uLightB, expTRT) * uGainTRT * gainW;
       lobeR  *= vSpec;

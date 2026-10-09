@@ -4,7 +4,7 @@
 // director (калибровка пузырей). fetch не блокирует: первые кадры идут на
 // дефолтах, которые равны JSON, так что видимого скачка нет.
 export const look = {
-  hair: { wetDarken: 0.35, wetGloss: 0.8 },
+  hair: { wetDarken: 0.65, wetGloss: 1.3 },
   streams: { alpha: 1.0 },
   mist: { alpha: 1.0 },
   drips: { share: 0.45 },
