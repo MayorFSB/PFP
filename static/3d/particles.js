@@ -102,6 +102,7 @@ export function makePoints(count, fragBody, cfg) {
       uniform float uWashFlow;
       uniform vec3 uStainY;
       uniform float uSnip, uScissorX, uScissorY, uIronFocus;
+      uniform float uSteamWash;
       uniform vec3 uIronPos, uNozzle, uDir;
       uniform float uJetLen, uSpread, uRise, uBrake, uFadeEnd, uLacquer;
       varying float vLife;
@@ -133,6 +134,7 @@ export function makePoints(count, fragBody, cfg) {
       uniform float uStreamA;
       uniform float uMistA;
       uniform float uDirt;
+      uniform float uSteamWash;
       void main() {
         // uGlitter обязателен в гейте: glitter делит с остальными системами
         // только uGlitter, а его uWash/uSteam/uCut/uLacquer — локальные нули,
@@ -278,6 +280,9 @@ export const bubbles = makePoints(qn('pfp_bubbles', 270, 0, 4000), bubbleFrag, {
   // Тип из aDrop.x — тот же хэш во fragment (vSeed), иначе разъедутся.
   float btype = floor(fract(aDrop.x * 3.0) * 3.0);
   sz *= btype < 0.5 ? 0.70 : (btype < 1.5 ? 1.0 : 1.30);
+  // Плавучесть (§7.9): 40% пузырей медленно всплывают с циклом.
+  float isRise = step(0.6, aExtra.x);
+  p.y += isRise * fract(t * 0.05 + aDrop.y) * 2.0;
 `,
 });
 
@@ -522,6 +527,35 @@ dirtRinse.material.uniforms.uDirt = { value: 0 };
 dirtRinse.material.uniforms.uWashFlow = uniforms.uWashFlow;
 dirtRinse.material.uniforms.uStainY = { value: new THREE.Vector3(0.3, 0.44, 0.58) };
 
+// ---- Этап 2, система 7: foamStreaks — потёки пены из-под шапок -------------
+// Вертикальные белые потёки скользят из облаков пены вниз (вязко, медленнее
+// воды) и тают по фазе, а не по высоте (§7.7). Стартуют под шапками:
+// верхняя половина пучка, не из воздуха.
+const foamStreakFrag = `
+  vec2 uv = gl_PointCoord * 2.0 - 1.0;
+  float body = (1.0 - smoothstep(0.0, 0.28, abs(uv.x))) * (1.0 - smoothstep(0.35, 0.95, abs(uv.y)));
+  float core = (1.0 - smoothstep(0.0, 0.45, length(uv))) * 0.5;
+  vec3 col = vec3(0.96, 0.97, 0.98) + vec3(0.04) * core;
+  gl_FragColor = vec4(col, body * 0.75 * uWash);
+`;
+export const foamStreaks = makePoints(qn('pfp_foamstreaks', 150, 0, 1000), foamStreakFrag, {
+  size: 0.30, sizePow: 1.4, sizeMin: 0.5,
+  span: LEN * 0.92, depthTest: false, renderOrder: 4,
+  vert: `
+  // Вязкое сползание: медленнее воды почти вдвое.
+  float u = fract(aDrop.y * 0.55 + uTime * (0.03 + aDrop.w * 0.035));
+  float y = uTop - u * uSpan;
+  float halfW = mix(0.41, 0.62, 1.0 - clamp(u, 0.0, 1.0)) * uBundleK;
+  float ang = (aDrop.z - 0.5) * 1.6;
+  float r = halfW * (0.95 + aDrop.w * 0.10);
+  p = vec3(sin(ang) * r, y, cos(ang) * r * 0.8);
+  vLife = 1.0 - u;
+  // Таяние по фазе фронта (§7.7): shared TL.foamMelt от uWashFlow.
+  sz *= 1.0 - smoothstep(0.85, 1.0, uWashFlow);
+  `,
+});
+foamStreaks.material.uniforms.uWashFlow = uniforms.uWashFlow;
+
 // ---- Пар: задний фон на мытье и сильно на укладке (этапы 2 и 4) ---------
 const steamFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
@@ -531,29 +565,35 @@ const steamFrag = `
   float n = sin(a2 * 3.0 + vSeed * 20.0) * 0.5 + sin(a2 * 5.0 - vSeed * 11.0) * 0.3;
   float wob = 0.78 + 0.16 * n;
   float body = 1.0 - smoothstep(0.0, wob, r / wob);
-  vec3 col = vec3(0.76, 0.81, 0.87);
-  gl_FragColor = vec4(col, pow(body, 1.7) * vLife * 0.085 * uSteam);
+  vec3 col = mix(vec3(0.76, 0.81, 0.87), vec3(0.85, 0.83, 0.80), uSteamWash);
+  gl_FragColor = vec4(col, pow(body, 1.7) * vLife * (0.085 + 0.05 * uSteamWash) * uSteam);
 `;
 export const steam = makePoints(qn('pfp_steam', 117, 0, 4000), steamFrag, {
   size: 1.5, sizePow: 1.6, sizeMin: 0.35,
   span: LEN * 1.5, renderOrder: 1,
   vert: `
-  // Подъём снизу вверх с циклом + боковой снос
-  float u = fract(aDrop.y + uTime * (0.012 + aDrop.w * 0.016));
+  // Подъём снизу вверх с циклом + боковой снос.
+  // WASH-режим (uSteamWash): пар жмётся к пучку сзади, подъём быстрее.
+  float rise = mix(0.012 + aDrop.w * 0.016, 0.020 + aDrop.w * 0.022, uSteamWash);
+  float u = fract(aDrop.y + uTime * rise);
   float y = mix(-8.5, 9.5, u);
   float ang = aDrop.z * 6.28318530718 + uTime * 0.05;
-  float rad = 1.3 + aDrop.w * 2.6 + sin(uTime * 0.2 + aDrop.x * 9.0) * 0.4;
+  float bhw = mix(0.41, 0.62, 1.0 - u) * uBundleK;
+  float rad = mix(1.3 + aDrop.w * 2.6 + sin(uTime * 0.2 + aDrop.x * 9.0) * 0.4,
+                  bhw + 0.4, uSteamWash);
   vLife = smoothstep(0.0, 0.12, u) * (1.0 - smoothstep(0.62, 1.0, u));
   // p уже объявлен в общем шаблоне — присваиваем, а не объявляем заново
+  float zBack = mix(1.2, 1.4, uSteamWash);
   p = vec3(cos(ang) * rad + sin(uTime * 0.15 + aDrop.x * 20.0) * 0.6,
            y,
-           sin(ang) * rad * 0.5 - 1.2);
+           sin(ang) * rad * 0.5 - zBack);
   // На завивке пар собирается в месте смыкания створок утюжка
   vec3 atIron = uIronPos + vec3(aDrop.x - 0.5, aDrop.y - 0.5, aDrop.z - 0.5) * 0.85;
   p = mix(p, atIron, uIronFocus);
   sz *= 0.7 + aDrop.w * 0.6;
-`,
+  `,
 });
+steam.material.uniforms.uSteamWash = { value: 0 };
 
 // ---- Этап 3: срезанные волоски ------------------------------------------
 // Два слоя в одной системе: базовый (aExtra.x=0) и «burst» (aExtra.x=1),
@@ -676,7 +716,7 @@ for (const [pts, jetLen, spread, rise, brake, fadeEnd] of [
 }
 
 // Группы слоёв. Порядок объявления = порядок обхода в syncResolution.
-export const washLayers = () => [bubbles, water, foamRivulet, streams, mist, dirtRinse];
+export const washLayers = () => [bubbles, water, foamRivulet, streams, mist, dirtRinse, foamStreaks];
 // Слои, чей поперечный радиус обязан ехать вместе с шириной пучка
 export const bundleLayers = () => [...washLayers(), cutBits, glitter];
 // Слои, которым нужен gl_PointSize в CSS-пикселях при resize

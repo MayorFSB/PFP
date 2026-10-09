@@ -10,6 +10,7 @@ import { sprayFast, sprayCloud, glitter, bubbles, water, foamRivulet, cutBits, s
 import { streams } from './particles.js';
 import { mist } from './particles.js';
 import { dirtRinse } from './particles.js';
+import { foamStreaks } from './particles.js';
 import { gumPts } from './gum.js';
 import {
   readStage, applyPhases, updateMouseGlow, setStrands, syncResolution,
@@ -198,7 +199,7 @@ window.__pfpLock = {
   // uniform'ах, и без доступа к ним их не проверить из консоли.
   sprayFast, sprayCloud, glitter, bubbles, water, foamRivulet, cutBits, steam,
   streams, gumPts,
-  mist, dirtRinse,
+  mist, dirtRinse, foamStreaks,
   get spray() {
     return [sprayFast, sprayCloud].map((p) => ({
       visible: p.visible,

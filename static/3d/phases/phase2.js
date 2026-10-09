@@ -8,7 +8,7 @@
 // обратно — при обычном max() оно залипло бы на 1.0 навсегда.
 import * as THREE from 'three';
 import { uniforms } from '../hair.js';
-import { steam, washLayers, streams, mist, water, dirtRinse } from '../particles.js';
+import { steam, washLayers, streams, mist, water, dirtRinse, foamStreaks } from '../particles.js';
 import { look } from '../look.js';
 import { TL, MAX_STRANDS, PLIES } from '../config.js';
 
@@ -44,6 +44,7 @@ export default {
   tl: TL.washFx,
 
   apply(p) {
+    const S = THREE.MathUtils.smoothstep;
     // Мытьё раскручивает локон в прямые нити; укладка закручивает снова.
     uniforms.uStraight.value = THREE.MathUtils.smoothstep(p, TL.straightOn[0], TL.straightOn[1])
       * (1 - THREE.MathUtils.smoothstep(p, TL.straightOff[0], TL.straightOff[1]));
@@ -56,10 +57,14 @@ export default {
       pts.visible = washVis > 0.01;
     }
 
-    // Вклад в фоновый пар: на мытье он слабый.
+    // Вклад в фоновый пар: на мытье он слабый и со сдвигом +0.03 (§8:
+    // разносим пик overdraw). uSteamWash — нормированный вес для lerp'а пара.
+    const steamWashVis = S(p, TL.washFx[0] + 0.03, TL.washFx[1] + 0.03)
+      * (1 - S(p, TL.washFx[2], TL.washFx[3]));
     steam.material.uniforms.uSteam.value = Math.max(
-      steam.material.uniforms.uSteam.value, washVis * 0.35,
+      steam.material.uniforms.uSteam.value, steamWashVis * 0.35,
     );
+    steam.material.uniforms.uSteamWash.value = steamWashVis;
 
     // Смыв грязи этапа 1: фаза 1 пишет uDirt=1 залипшим (q clamp), а идём
     // строго после неё — домножаем на gate мытья. К концу активной пены
@@ -68,7 +73,6 @@ export default {
     uniforms.uDirt.value *= 1 - clean;
 
     // WASH v2.1 §5: вес мокрости, догоняющий кламп, спуск фронта.
-    const S = THREE.MathUtils.smoothstep;
     uniforms.uWet.value = S(p, TL.wet.rise[0], TL.wet.rise[1])
       * (1 - S(p, TL.wet.fall[0], TL.wet.fall[1]));
     const wet = uniforms.uWet.value;
@@ -92,6 +96,12 @@ export default {
     dirtRinse.material.uniforms.uDirt.value = dirtGate;
     dirtRinse.material.uniforms.uStainY.value.set(STAINS[0].t, STAINS[2].t, STAINS[4].t);
     dirtRinse.visible = dirtGate > 0.01;
+
+    // Потёки пены стартуют на +2% позже пузырей (§8: разносим пик overdraw).
+    const streakVis = S(p, TL.washFx[0] + 0.02, TL.washFx[1] + 0.02)
+      * (1 - S(p, TL.washFx[2], TL.washFx[3]));
+    foamStreaks.visible = streakVis > 0.01;
+    // uWash у потёков ставит общий цикл выше; видимость — только своим окном.
 
     // Дизайн-код (look-wash.json): мокрый вид и силы систем — из JSON.
     uniforms.uWetDarken.value = look.hair.wetDarken;
