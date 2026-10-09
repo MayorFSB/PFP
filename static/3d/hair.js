@@ -157,6 +157,15 @@ export const uniforms = {
   uWetDarken: { value: 0.35 }, // потемнение мокрых
   uWetGloss: { value: 0.8 },   // усиление узкого R-блика мокрых
 
+  // WASH v2.1: вес мокрости и фронт воды. Пишет phases/phase2.js.
+  uWet: { value: 0 },       // 0 сухое → 1 мокрое (TL.wet)
+  uWetClump: { value: 0 },  // слипание мокрых (догоняет uWet)
+  uWashFlow: { value: 0 },  // спуск фронта воды (TL.washFlow)
+  // Пятна грязи: x=jit-цель, y=t на пряди, z=размер, w=смытость 0..1.
+  // Заполняет phase2 каждый кадр (6 vec4 — дёшево). Жвачка DROPPED по ТЗ.
+  uStains: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
+  uStainCount: { value: 6 },
+
   // Этап 1 «до»: грязные/непослушные/отпадают. Пишет только phases/phase1.js.
   uDirt: { value: 0 },   // пыль и комки: вуаль + матовость
   uGum: { value: 0 },    // жвачка в волосах (розовый комок, t≈0.55)
@@ -188,6 +197,9 @@ const mat = new THREE.ShaderMaterial({
     uniform float uDirt, uGum, uWild, uShed, uChaos;
     uniform float uGumX, uGumZ;
     uniform float uGloss, uGlue, uPlyThick, uGlint, uGlintY, uGlitter, uWidthK;
+    uniform float uWet, uWetClump;
+    uniform vec4 uStains[6];
+    uniform float uStainCount;
     uniform vec3 uIronPos;
     uniform vec2 uMouse, uRes;
     varying float vT;
@@ -206,6 +218,7 @@ const mat = new THREE.ShaderMaterial({
     varying float vGumC;
     varying float vGumE;
     varying float vWet;
+    varying float vStain;
 
     const float PI2 = 6.28318530718;
     const float PI = 3.14159265359;
@@ -253,14 +266,14 @@ const mat = new THREE.ShaderMaterial({
       // У каждого плея своя скорость — отсюда переплетение.
       float plyN = clamp((rad - uPlyR0) / uPlyDr, 0.0, 1.0);
 
-      // Склейка после лака (этап 5): отклонение пряди внутри плея сокращается —
-      // пряди слипаются, пучок становится плотнее.
-      // ВАЖНО: положение полос плей не трогаем. Если стягивать их к центру,
-      // пучок схлопывается вдвое и волосы «уменьшаются».
-      if (uGlue > 0.001) {
+      // Слипание (WASH v2.1): общий инлайн для лака и мокрости. Мокрые слабее
+      // лака (0.48 vs 0.82). Сжимается ТОЛЬКО отклонение внутри слота —
+      // положение полос плей не трогаем (инвариант непересечения).
+      float clumpK = max(uGlue * 0.82, uWetClump * 0.48);
+      if (clumpK > 0.001) {
         float base = uPlyR0 + plyN * uPlyDr;
         float slotDev = (rad - base) / max(uPlyThick, 1e-4);   // -0.5..0.5
-        rad = base + slotDev * uPlyThick * (1.0 - 0.82 * uGlue);
+        rad = base + slotDev * uPlyThick * (1.0 - clumpK);
         plyN = clamp((rad - uPlyR0) / uPlyDr, 0.0, 1.0);
       }
       // Ширина локона = WIDTH_FRAC ширины окна. Масштабируем ТОЛЬКО радиус:
@@ -274,9 +287,8 @@ const mat = new THREE.ShaderMaterial({
       float turns = (0.95 + plyN * 0.55) * (1.0 - uStraight) * (1.0 - 0.65 * uWeave);
       float th = phase * PI2 + t * turns * PI2 + uTime * 0.07;
       // clump зависит ТОЛЬКО от t — одинаков для всех нитей, поэтому
-      // радиальный порядок сохраняется. Своя фаза здесь ломала бы его
-      // и рождала пересечения.
-      float clump = 1.0 + 0.16 * sin(t * 2.7) * (1.0 - uStraight * 0.7);
+      // радиальный порядок сохраняется. Мокрые тяжелее: волна прибита.
+      float clump = 1.0 + 0.16 * sin(t * 2.7) * (1.0 - uStraight * 0.7) * (1.0 - uWet * 0.4);
       float taper = (1.0 - 0.34 * t) * mix(1.0, 0.46, uStraight);
       float R = rad * taper * clump;
       float dR = -0.34 * rad * clump;
@@ -437,7 +449,6 @@ const mat = new THREE.ShaderMaterial({
       // Лак. Границы = TL.lacq, плюс глянец от фиксации (TL.fixGloss) —
       // он держится до конца страницы.
       float lacq = max(smoothstep(${g(TL.lacq[0])}, ${g(TL.lacq[1])}, uScroll), uGloss);
-      float wet = wash;
       vWet = wash;
 
       // Салют
@@ -531,7 +542,19 @@ const mat = new THREE.ShaderMaterial({
       vGumE = gEdge;
       // Ширина: корка толстая, тянущийся центр тоньше.
       float gumW = 1.0 + gEdge * 2.4 + gCore * 0.6;
-      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4) * (1.0 + vClump * 1.3) * gumW, 1.0);
+      // Пятна грязи (WASH v2.1, §7.5.1): вес гаусса в (jit, t)-пространстве.
+      // Компрессия клампа радиальная, не вдоль t — пятна не дрейфуют.
+      // Утолщение скромное (×2): грязь, не жвачка.
+      float stain = 0.0;
+      for (int i = 0; i < 6; i++) {
+        if (float(i) >= uStainCount) break;
+        vec4 sU = uStains[i];
+        float dJ = (jit - sU.x) * 55.0;
+        float dT = (t - sU.y) * 22.0;
+        stain = max(stain, exp(-dJ * dJ) * exp(-dT * dT) * sU.z * (1.0 - sU.w));
+      }
+      vStain = stain;
+      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4) * (1.0 + vClump * 1.3) * gumW * (1.0 + stain * 2.0), 1.0);
       // Дыры в тянущемся центре: местами волос просвечивает сквозь жвачку.
       vAlpha *= 1.0 - gHole * 0.85;
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -543,8 +566,10 @@ const mat = new THREE.ShaderMaterial({
       float zNorm = clamp((-mv.z - 9.5) / 3.2, 0.0, 1.0);
       vShade = zNorm;
 
-      // Спекляр Кайия–Кая переносим во fragment, здесь считаем «сухость/мокрость»
-      vSpec = (1.0 - wet * 0.55) + lacq * 0.9 + wave * 0.35 + uSuccess * 0.8;
+      // Спекляр переносим во fragment. WASH v2.1: старое прибивание блика
+      // мокростью (1 - wet*0.55) УДАЛЕНО — мокрые ярче, фрагмент (§7.2) теперь
+      // владеет поведением через gainW.
+      vSpec = 1.0 + lacq * 0.9 + wave * 0.35 + uSuccess * 0.8;
       // Грязные волосы матовые: общий блик прибивается почти вдвое.
       vSpec *= 1.0 - uDirt * 0.45;
 
@@ -592,6 +617,7 @@ const mat = new THREE.ShaderMaterial({
     varying float vGumC;
     varying float vGumE;
     varying float vWet;
+    varying float vStain;
 
     // Chiang 2016: коэффициенты поглощения пигментов.
     // σ_a = eumelanin·mel + pheomelanin·redness, цвет волоса = exp(-σ_a·k).
