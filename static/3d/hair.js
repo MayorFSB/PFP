@@ -590,7 +590,8 @@ const mat = new THREE.ShaderMaterial({
     uniform vec2 uMouse;
     uniform float uGlow, uPx, uTime;
     uniform float uDirt, uGum;
-    uniform float uWetDarken, uWetGloss;
+    uniform float uWetDarken, uWetGloss; // legacy look-wash.json (см. §7.2)
+    uniform float uWashFlow;
     uniform float uShiftR, uShiftTRT, uExpR, uExpTRT, uGainR, uGainTRT;
     uniform float uMelanin, uRedness, uMelJitter;
     uniform float uScatter, uDensity, uRootDark, uRootLen, uAmb;
@@ -660,7 +661,10 @@ const mat = new THREE.ShaderMaterial({
       float melJit = (vSeed * 2.0 - 1.0) * uMelJitter;
       // У корня меланина больше — тёмный корень, как в референсах.
       float rootRamp = 1.0 - smoothstep(0.0, uRootLen, vT);
-      float mel = clamp(uMelanin + melJit + uRootDark * rootRamp, 0.0, 1.0);
+      // WASH v2.1 §7.2: мокрость — через пигмент, а не тонирование.
+      // Меланин ×(1+0.65·uWet): темнее и насыщеннее, Beer–Lambert доделывает.
+      // Старое base*=uWetDarken удалено (серая заливка запрещена спекой).
+      float mel = clamp((uMelanin + melJit + uRootDark * rootRamp) * (1.0 + 0.65 * vWet), 0.0, 1.0);
       // Выцветание к кончику (солнце): пигмента к концу на ~12% меньше.
       // Физично осветляет кончики через тот же Beer–Lambert ниже.
       mel *= 1.0 - 0.12 * vT;
@@ -677,8 +681,6 @@ const mat = new THREE.ShaderMaterial({
       // Пыльная вуаль (этап 1): общий тон к серо-коричневому, убивает глубину
       // цвета. Комки (vClump) красятся отдельно ниже, здесь только налёт.
       base = mix(base, vec3(0.42, 0.36, 0.29), uDirt * 0.42);
-      // Мокрые темнее (как на фото «душ»).
-      base *= 1.0 - vWet * uWetDarken;
 
       // ---- Нормаль цилиндрической нити -----------------------------------
       // Лента развёрнута к камере, поэтому нормаль строится из касательной и
@@ -694,16 +696,21 @@ const mat = new THREE.ShaderMaterial({
       vec3 N = normalize(Vperp * cos(theta) + B * sin(theta));
 
       // ---- Marschner: два лепестка ---------------------------------------
+      // WASH v2.1 §7.2: сухое = широкая мягкая вуаль, мокрое = узкие зеркальные
+      // полосы (expR→340, expTRT→60, gain ×2.3). Старое uWetGloss удалено.
       vec3 TR  = shiftTangent(T, N, uShiftR);
       vec3 TRT = shiftTangent(T, N, uShiftTRT);
-      float lobeR  = strandSpecular(TR,  V, uLightA, uExpR)   * uGainR;
-      float lobeTRT = strandSpecular(TRT, V, uLightB, uExpTRT) * uGainTRT;
+      float expR = mix(uExpR, 340.0, vWet);
+      float expTRT = mix(uExpTRT, 60.0, vWet);
+      float gainW = 1.0 + vWet * 1.3;
+      float lobeR  = strandSpecular(TR,  V, uLightA, expR)   * uGainR * gainW;
+      float lobeTRT = strandSpecular(TRT, V, uLightB, expTRT) * uGainTRT * gainW;
       lobeR  *= vSpec;
       lobeTRT *= vSpec;
       // TRT окрашен абсорбцией волоса — это и есть золотой «второй блик».
       // Частичная десатурация, иначе чистый блонд уходит в металл.
       vec3 tintTRT = mix(base, vec3(dot(base, vec3(0.3, 0.6, 0.1))), 0.35);
-      vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR * (1.0 + vWet * uWetGloss);
+      vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR;
       vec3 specTRT = tintTRT * lobeTRT;
 
       // ---- Rim + TT: контровой свет --------------------------------------
@@ -725,7 +732,8 @@ const mat = new THREE.ShaderMaterial({
       float wrap = sinTL * 0.5 + 0.5;
       float diffuse = mix(0.30, 1.0, wrap);
       // Переизлучение соседних нитей подсвечивает теневую сторону.
-      float multi = (1.0 - wrap) * uScatter;
+      // Мокрый пучок слипается: рассеяние гаснет (тёмные межпрядные зазоры).
+      float multi = (1.0 - wrap) * uScatter * (1.0 - 0.7 * vWet);
       float ambient = uAmb;
 
       // ---- Плотность bundle: Beer–Lambert + глубина ----------------------
@@ -745,6 +753,16 @@ const mat = new THREE.ShaderMaterial({
       col = mix(col, vec3(0.42, 0.27, 0.30), vGumE * 0.9);
       col = mix(col, vec3(0.93, 0.42, 0.60) * (0.65 + 0.35 * vSpec), vGumC);
       col += vec3(1.0, 0.85, 0.92) * vGumC * 0.30 * vSpec;
+      // Пятна грязи (§7.5.2): desaturated brown. От uWet не зависят (уже
+      // тёмные), гаснут только через w (смытость) в весe вершины.
+      col = mix(col, vec3(0.36, 0.30, 0.22), clamp(vStain, 0.0, 1.0));
+
+      // Фронт воды (§7.3): узкая спускающаяся полоса глянца — видимое событие
+      // фронта даже там, где капли редки. Константы продублированы с TL
+      // (та же дисциплина, что cutLine): wLine едет TOP+1.5 → −11.0.
+      float wLine = mix(9.1, -11.0, uWashFlow);
+      float wb = exp(-pow((vY - wLine) * 1.3, 2.0));
+      col += vec3(0.75, 0.85, 0.95) * wb * uWashFlow * (lobeR * 2.0 + 0.35);
 
       // Контактное затенение у корня: первые 12% длины в тени скальпа.
       col *= mix(0.45, 1.0, smoothstep(0.0, 0.12, vT));
