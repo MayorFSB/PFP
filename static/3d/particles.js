@@ -219,16 +219,19 @@ const bubbleFrag = `
   vec3 col;
   float alpha;
   if (btype < 0.5) {
-    // Тип 0 — классика: радужный ободок, каустика снизу-слева, два блика.
-    float rim = smoothstep(0.70, 0.99, rr);
-    float arc = smoothstep(0.78, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
-    vec3 irid = 0.5 + 0.5 * cos(6.28318530718 * (rr * 2.1 + vSeed + vec3(0.0, 0.33, 0.67)));
-    col = mix(vec3(0.09, 0.11, 0.15), irid * 0.9, rim);
-    col += vec3(1.0) * arc * 0.95;
-    col += vec3(1.0) * smoothstep(0.17, 0.0, length(uv - vec2(-0.33, 0.36))) * 0.95;
-    col += vec3(0.92) * smoothstep(0.11, 0.0, length(uv - vec2(0.30, 0.45))) * 0.60;
-    float body = 1.0 - smoothstep(0.0, 0.97, rr);
-    alpha = (rim * 0.80 + arc * 0.45 + body * 0.10) * uWash;
+  // Тип 0 — классика: радужный ободок, каустика снизу-слева, два блика.
+  // Вариант A: более мягкий ободок + плотное тёмное ядро + яркий хайлайт
+  // по верхнему краю — читается как мыльный пузырь, а не как радуга.
+  float rim = smoothstep(0.72, 0.98, rr);
+  float arc = smoothstep(0.80, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
+  vec3 irid = 0.5 + 0.5 * cos(6.28318530718 * (rr * 1.6 + vSeed + vec3(0.0, 0.33, 0.67)));
+  col = mix(vec3(0.12, 0.16, 0.22), irid * 0.85, rim * 0.7);
+  col += vec3(1.0) * arc * 1.1;
+  col += vec3(1.0) * smoothstep(0.18, 0.0, length(uv - vec2(-0.33, 0.36))) * 1.0;
+  col += vec3(0.95) * smoothstep(0.12, 0.0, length(uv - vec2(0.30, 0.45))) * 0.75;
+  float body = 1.0 - smoothstep(0.0, 0.95, rr);
+  col = mix(col, vec3(0.05, 0.08, 0.12), body * 0.45);
+  alpha = (rim * 0.85 + arc * 0.50 + body * 0.08) * uWash;
   } else if (btype < 1.5) {
     // Тип 1 — молочная бусина: плотная матовая, мягкий ободок без радуги.
     float rim1 = smoothstep(0.45, 0.98, rr);
@@ -364,6 +367,11 @@ const foamFrag = `
   }
 
   vec3 col = vec3(0.88, 0.92, 0.96) + rings * 0.50;
+  // Кремовость: верх-лево тёплый свет, низ-право холодная тень.
+  col *= 0.86 + 0.14 * (uv.y * 0.5 + 0.5) + vec3(0.03, 0.01, -0.02) * (uv.x * 0.5 + 0.5);
+  // Блёстки мокрого мыла: редкие яркие точки по хэшу.
+  float sp = step(0.965, fract(sin(dot(floor(uv * 9.0), vec2(12.9898, 78.233)) + vSeed * 3.0) * 43758.5453));
+  col += vec3(1.0) * sp * 0.9;
   gl_FragColor = vec4(col, clamp((core * 0.50 + rings * 0.42) * edge * vLife * uWash, 0.0, 1.0));
 `;
 const FOAM_CLOUDS = qn('pfp_foamclouds', 17, 1, 200);
@@ -378,6 +386,10 @@ export const foamRivulet = makePoints(FOAM_CLOUDS * FOAM_PER, foamFrag, {
   float t = uTime;
   float b = 0.10 + fract(t * (0.024 + aExtra.z * 0.030) + aExtra.x) * 0.50;
   vLife = smoothstep(0.0, 0.05, b) * (1.0 - smoothstep(0.58, 0.92, b));
+  // Растворение облаков по одному (§7.7): каждое тает в свой момент фронта,
+  // разброс по хэшу облака (aExtra.x) — а не все разом по общему гейту.
+  float melt = 1.0 - smoothstep(0.80, 1.0, clamp(uWashFlow + (aExtra.x - 0.5) * 0.15, 0.0, 1.0));
+  vLife *= melt;
 
   float halfW = mix(0.41, 0.62, 1.0 - clamp(b, 0.0, 1.0));
   // Азимут по фронту bundle: облака липнут к разным прядям, а не висят
@@ -397,8 +409,10 @@ export const foamRivulet = makePoints(FOAM_CLOUDS * FOAM_PER, foamFrag, {
     cz + aDrop.z * spread * 0.55
   );
   sz *= 0.78 + aExtra.w * 0.45;
-`,
+  sz *= 0.4 + 0.6 * melt;
+  `,
 });
+foamRivulet.material.uniforms.uWashFlow = uniforms.uWashFlow;
 // Упаковываем частицы в облака. Фазы берём из ХЕША, а не из золотой
 // последовательности: низкий дискриминант давал равномерное появление,
 // а нужно хаотичное.
@@ -533,10 +547,13 @@ dirtRinse.material.uniforms.uStainY = { value: new THREE.Vector3(0.3, 0.44, 0.58
 // верхняя половина пучка, не из воздуха.
 const foamStreakFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
-  float body = (1.0 - smoothstep(0.0, 0.28, abs(uv.x))) * (1.0 - smoothstep(0.35, 0.95, abs(uv.y)));
+  // Рваный край: поперечная дрожь по длине мазка, голова плотнее хвоста.
+  float rag = 0.75 + 0.25 * sin(uv.y * 18.0 + vSeed * 40.0) * sin(uv.x * 15.0 + vSeed * 17.0);
+  float body = (1.0 - smoothstep(0.0, 0.28 * rag, abs(uv.x))) * (1.0 - smoothstep(0.35, 0.95, abs(uv.y)));
+  float head = 0.55 + 0.45 * smoothstep(-1.0, 1.0, uv.y);
   float core = (1.0 - smoothstep(0.0, 0.45, length(uv))) * 0.5;
-  vec3 col = vec3(0.96, 0.97, 0.98) + vec3(0.04) * core;
-  gl_FragColor = vec4(col, body * 0.75 * uWash);
+  vec3 col = (vec3(0.96, 0.97, 0.98) + vec3(0.04) * core) * (0.88 + 0.12 * (uv.y * 0.5 + 0.5));
+  gl_FragColor = vec4(col, body * head * 0.75 * uWash);
 `;
 export const foamStreaks = makePoints(qn('pfp_foamstreaks', 150, 0, 1000), foamStreakFrag, {
   size: 0.30, sizePow: 1.4, sizeMin: 0.5,
