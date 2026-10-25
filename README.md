@@ -91,11 +91,23 @@ wash-flow), пена, пузыри, пар; «мойка» смывает гря
 
 ## Нагрузочное
 
-`load/slots.js` (k6) — прогон эндпоинта слотов (кэш Valkey против БД):
+`load/slots.js` (k6) — регистрация+логин один раз в `setup()`, итерации читают
+главную и слоты (кэш Valkey против БД), затем пробуют бронь+отмену. Бронь под
+конкуренцией честно возвращает 409, поэтому для неё отдельный тег и порог.
 
 ```bash
-k6 run load/slots.js
+k6 run load/slots.js   # ENV: BASE, LOAD_FILIAL, LOAD_MASTER, LOAD_SERVICE
 ```
+
+Прогон (3 VU, 35с, dev-ноут, Intel UHD iGPU параллельно 3D-сцене):
+
+| метрика | значение | порог |
+|---|---|---|
+| `http_req_duration` p95 | **16.3 ms** | <800 ms |
+| слоты p95 (name:slots) | **13.3 ms** | <200 ms |
+| `http_req_failed` | **0.00%** | <1% |
+| cache hit ratio (slots, Prometheus) | **~98.6%** | — |
+
 
 ## Структура
 
@@ -118,3 +130,15 @@ observability/   prometheus, grafana (дашборд), loki, promtail
 load/slots.js    k6-сценарий слотов
 tests/           52 теста (API, SSR, JWT, слоты, пароли)
 ```
+
+## Observability
+
+```bash
+docker compose up -d prometheus grafana loki promtail
+```
+
+Grafana: http://localhost:3000 (дашборд `observability/grafana-dashboard.json` —
+брони по филиалам, p95 латентность, cache hit ratio). Метрики приложения:
+`/metrics` (`bookings_total{filial}`, `http_latency_seconds`, `cache_hits_total`).
+Логи — structlog JSON с `rid`, promtail отправляет в Loki.
+
