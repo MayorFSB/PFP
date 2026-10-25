@@ -452,9 +452,10 @@ const mat = new THREE.ShaderMaterial({
       float lacq = max(smoothstep(${g(TL.lacq[0])}, ${g(TL.lacq[1])}, uScroll), uGloss);
       vWet = wash;
 
-      // Салют
-      vec3 dir = p - vec3(0.0, 0.4, -1.0);
-      p += (dir / max(length(dir), 0.001)) * uSuccess * (2.2 + jit * 2.0);
+      // Салют. УДАЛЁН ПОЛНОСТЬЮ (толчок и вспышка блика): после отключения
+      // спрайтовых частиц салют читался как раздувание волос (баг-репорт).
+      // uSuccess остаётся объявленным для совместимости, но на вид не влияет.
+      // Старый код: p += normalize(p - (0,0.4,-1)) * uSuccess * (2.2 + jit*2).
 
       // Отпадание (этап 1, 45–100% через uShed): до 10% нитей с малым хэшем
       // рвутся КУСКАМИ разной длины — точка отрыва своя (от коротких
@@ -555,7 +556,12 @@ const mat = new THREE.ShaderMaterial({
         stain = max(stain, exp(-dJ * dJ) * exp(-dT * dT) * sU.z * (1.0 - sU.w));
       }
       vStain = stain;
-      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4) * (1.0 + vClump * 1.3) * gumW * (1.0 + stain * 2.0), 1.0);
+      // Суб-пряди: лента несёт 6 виртуальных волосков, рисуемых во fragment
+      // (см. hair fragment «SUB-STRANDS»). Лента должна быть шире одного
+      // волоска — иначе суб-прядям негде жить. ×2.8 ≈ 3px на 1px базовой.
+      // Толще — дороже во fragment (overdraw), тоньше — суб-пряди сливаются.
+      float subW = 2.8;
+      float wpx = max(uPx * thick * mix(1.30, 0.62, smoothstep(0.0, 0.85, t)) * (1.0 + fly * 0.4) * (1.0 + vClump * 1.3) * gumW * (1.0 + stain * 2.0), 1.0) * subW;
       // Дыры в тянущемся центре: местами волос просвечивает сквозь жвачку.
       vAlpha *= 1.0 - gHole * 0.85;
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
@@ -570,7 +576,7 @@ const mat = new THREE.ShaderMaterial({
       // Спекляр переносим во fragment. WASH v2.1: старое прибивание блика
       // мокростью (1 - wet*0.55) УДАЛЕНО — мокрые ярче, фрагмент (§7.2) теперь
       // владеет поведением через gainW.
-      vSpec = 1.0 + lacq * 0.9 + wave * 0.35 + uSuccess * 0.8;
+      vSpec = 1.0 + lacq * 0.9 + wave * 0.35;
       // Грязные волосы матовые: общий блик прибивается почти вдвое.
       vSpec *= 1.0 - uDirt * 0.45;
 
@@ -656,7 +662,6 @@ const mat = new THREE.ShaderMaterial({
       // hStrand≈0 проступают призраками на всю длину даже при vAlpha≈0 —
       // именно их видно на входе. Отсекаем до стохастического теста.
       if (vAlpha < 0.004) discard;
-      if (vAlpha < hStrand) discard;
 
       // ---- Цвет из меланина ----------------------------------------------
       float melJit = (vSeed * 2.0 - 1.0) * uMelJitter;
@@ -683,47 +688,63 @@ const mat = new THREE.ShaderMaterial({
       base = mix(base, vec3(0.42, 0.36, 0.29), uDirt * 0.42);
 
       // ---- Нормаль цилиндрической нити -----------------------------------
-      // Лента развёрнута к камере, поэтому нормаль строится из касательной и
-      // направления на зрителя; vEdge задаёт угол поперёк ленты. Это и даёт
-      // кольцевой блик, бегущий вдоль нити.
+      // Лента развёрнута к камере; vEdge задаёт угол поперёк ленты (-1..1).
       vec3 V = normalize(-vView);
       vec3 T = normalize(vTan);
       vec3 Vperp = V - T * dot(V, T);
       float vl = length(Vperp);
       Vperp = vl > 1e-4 ? Vperp / vl : normalize(cross(T, vec3(0.0, 1.0, 0.0)));
       vec3 B = cross(T, Vperp);
-      float theta = vEdge * 1.15;
-      vec3 N = normalize(Vperp * cos(theta) + B * sin(theta));
 
-      // ---- Marschner: два лепестка ---------------------------------------
+      // ---- Marschner: параметры лепестков (общие для ленты) ---------------
       // WASH v2.1 §7.2: сухое = широкая мягкая вуаль, мокрое = узкие зеркальные
-      // полосы (expR→340, expTRT→60, gain ×2.3). Старое uWetGloss удалено.
-      vec3 TR  = shiftTangent(T, N, uShiftR);
-      vec3 TRT = shiftTangent(T, N, uShiftTRT);
+      // полосы (expR→260, expTRT→60, gain ×2.3). tintTRT — золотой «второй
+      // блик», окрашенный абсорбцией волоса; частичная десатурация от металла.
       float expR = mix(uExpR, 260.0, vWet);
       float expTRT = mix(uExpTRT, 60.0, vWet);
       float gainW = 1.0 + uWetGloss * vWet;
-      float lobeR  = strandSpecular(TR,  V, uLightA, expR)   * uGainR * gainW;
-      float lobeTRT = strandSpecular(TRT, V, uLightB, expTRT) * uGainTRT * gainW;
-      lobeR  *= vSpec;
-      lobeTRT *= vSpec;
-      // TRT окрашен абсорбцией волоса — это и есть золотой «второй блик».
-      // Частичная десатурация, иначе чистый блонд уходит в металл.
       vec3 tintTRT = mix(base, vec3(dot(base, vec3(0.3, 0.6, 0.1))), 0.35);
-      vec3 specR  = vec3(1.0, 0.98, 0.94) * lobeR;
-      vec3 specTRT = tintTRT * lobeTRT;
+
+      // ---- SUB-STRANDS: 6 виртуальных волосков на ленте ------------------
+      // Каждая суб-прядь — узкая линия поперёк ленты со СВОЕЙ нормалью, поэтому
+      // получает собственный кольцевой блик Marschner. Визуально лента читается
+      // как пучок отдельных волос с просветами (глубину дают честные depth-write
+      // и дизер соседних лент), а геометрическая цена остаётся 300 лент.
+      // Джиттер офсета от vSeed разводит суб-пряди соседних лент — иначе
+      // «гребёнка»: все ленты с одинаковым шагом линий.
+      float subSum = 0.0;
+      vec3 subCol = vec3(0.0);
+      float cov = 0.0;
+      vec3 accSpec = vec3(0.0);
+      for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        float o = (fi + 0.5) * (2.0 / 6.0) - 1.0
+                + (fract(sin(vSeed * 317.0 + fi * 27.7) * 43758.5453) - 0.5) * 0.34;
+        float d = (vEdge - o) * 4.5;            // ширина суб-пряди в долях ленты
+        float lineA = exp(-d * d);
+        vec3 Nk = normalize(Vperp * cos(o * 1.05) + B * sin(o * 1.05));
+        vec3 TRk  = shiftTangent(T, Nk, uShiftR);
+        vec3 TRTk = shiftTangent(T, Nk, uShiftTRT);
+        float lobeRk   = strandSpecular(TRk,  V, uLightA, expR)   * uGainR   * gainW * vSpec;
+        float lobeTRTk = strandSpecular(TRTk, V, uLightB, expTRT) * uGainTRT * gainW * vSpec;
+        vec3 colK = vec3(1.0, 0.98, 0.94) * lobeRk + tintTRT * lobeTRTk;
+        accSpec += colK * lineA;
+        subSum += lineA;
+        cov = max(cov, lineA);
+      }
 
       // ---- Rim + TT: контровой свет --------------------------------------
-      // Волосы узнаются по светящемуся контуру: источник сзади-сверху.
-      // Камера не вращается — направление фиксировано константой.
-      // TT — просвечивание (средний лепесток Marschner, exp ~8): свет проходит
-      // СКВОЗЬ нить, поэтому красит в осветлённый base и зависит от того,
-      // смотрит ли зритель на свет (forward scattering через -V·L).
+      // TT не зависит от N (считается по касательной) — один раз на ленту.
       vec3 Lrim = normalize(vec3(0.10, 0.60, -1.00));
       float fwd = clamp(dot(-V, Lrim) * 0.5 + 0.5, 0.0, 1.0);
       float lobeTT = strandSpecular(T, V, Lrim, 8.0) * (0.25 + 0.75 * fwd * fwd);
       vec3 tintTT = mix(base, vec3(1.0), 0.30);
       vec3 specTT = tintTT * lobeTT * 0.35 * vSpec;
+
+      // Стохастическое выпадение теперь по ПОКРЫТИЮ суб-прядей: в зазорах
+      // между линиями cov≈0 — нить рассыпается на отдельные волоски с честными
+      // просветами (сквозь них видны дальние ленты с depth-write).
+      if (vAlpha * cov < hStrand) discard;
 
       // ---- Kajiya-Kay diffuse + fake multiple scattering ------------------
       float LdotT = dot(T, uLightA);
@@ -743,9 +764,12 @@ const mat = new THREE.ShaderMaterial({
       vec3 atten = exp(-sigmaA * density * uDensity * 2.2);
       float depthDim = mix(0.34, 1.0, depth * depth);
 
+      // Тело волоса одинаково для всех суб-прядей (зависит от ленты, не от N);
+      // блики — по-суб-прядные из цикла выше, нормированные на сумму линий.
       vec3 col = base * atten * (diffuse + multi + ambient) * depthDim;
-      // Комки и корка жвачки матовые: зеркальный лепесток на них не играет.
-      col += (specR + specTRT + specTT) * (1.0 - vClump) * (1.0 - vGumE * 0.9);
+      float specMask = (1.0 - vClump) * (1.0 - vGumE * 0.9);
+      col += (accSpec / max(subSum, 1e-3)) * specMask;
+      col += specTT * specMask;
       // Комки грязи: тёмные, тон зависит от нити (не плоская заливка).
       col = mix(col, vec3(0.16, 0.13, 0.10) * (0.7 + 0.3 * vSeed), vClump * 0.85);
       // Жвачка: засохшая корка по краям (тёмная, матовая) и тянущийся

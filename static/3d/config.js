@@ -17,6 +17,9 @@ const qn = (k, d, lo, hi) => Math.min(Math.max(parseInt(qs.get(k), 10) || d, lo)
 // Эталон — 300 нитей (стадия 0 зафиксирована): процессор не грузим,
 // дальше работаем только состояниями материала, не геометрией.
 // Ёмкость буферов = MAX_STRANDS; реально рисуется strandCap ≤ MAX.
+// 1000 нитей пробовали как «премиум-плотность»: на реальной машине это дало
+// сильную нагрузку и рваную картинку (governor режет нити на глазах) —
+// откат на 300. Плотность двигать только вместе с профилем качества.
 const MAX_STRANDS = qn('pfp_strands', 300, 100, 4000);
 const SEG = qn('pfp_seg', 56, 8, 96);          // ≥48 — иначе видны изломы спирали
 const PX_WIDTH = qn('pfp_px', 1.0, 0.5, 8);   // ширина нити: 1px под реализм
@@ -123,8 +126,15 @@ const PHASE = {
 // Остальные подключаются по одной. Порядок вызова.
 const ACTIVE_PHASES = [0, 1, 2];
 
+// Режим «чистые волосы»: point-спрайтовые системы (пузыри, пена, вода, блёстки,
+// потёки, струи лака) не рисуются — эффекты этапов остаются в шейдере волос
+// (фронт воды, мокрость, глянец). Пар оставлен: на тёмном фоне читается как
+// атмосфера, а не как наклейка. Гейт применяет director.applyPhases ПОСЛЕ
+// прохода фаз, поэтому фазы не спорят с ним за pts.visible.
+const PARTICLES_OFF = true;
+
 export {
   isMobile, qs, qn, MAX_STRANDS, SEG, PX_WIDTH, TOP, LEN, HERO_STRANDS, GOV_MIN,
   PLIES, PLY_R0, PLY_DR, PLY_THICK, BUNDLE_R, WIDTH_FRAC, strandsForWidth,
-  TL, g, PHASE, ACTIVE_PHASES,
+  TL, g, PHASE, ACTIVE_PHASES, PARTICLES_OFF,
 };

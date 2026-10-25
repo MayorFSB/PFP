@@ -219,19 +219,19 @@ const bubbleFrag = `
   vec3 col;
   float alpha;
   if (btype < 0.5) {
-  // Тип 0 — классика: радужный ободок, каустика снизу-слева, два блика.
-  // Вариант A: более мягкий ободок + плотное тёмное ядро + яркий хайлайт
-  // по верхнему краю — читается как мыльный пузырь, а не как радуга.
-  float rim = smoothstep(0.72, 0.98, rr);
+  // Тип 0 — мыльный пузырь: тонкая радужная плёнка по ободку, полупрозрачное
+  // тёмное тело, яркая каустика снизу-слева, два блика. Ободок мягче (шире
+  // smoothstep), тело не чёрное, а тёмно-сине-серое с легкой прозрачностью.
+  float rim = smoothstep(0.62, 0.96, rr);
   float arc = smoothstep(0.80, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
   vec3 irid = 0.5 + 0.5 * cos(6.28318530718 * (rr * 1.6 + vSeed + vec3(0.0, 0.33, 0.67)));
-  col = mix(vec3(0.12, 0.16, 0.22), irid * 0.85, rim * 0.7);
-  col += vec3(1.0) * arc * 1.1;
-  col += vec3(1.0) * smoothstep(0.18, 0.0, length(uv - vec2(-0.33, 0.36))) * 1.0;
-  col += vec3(0.95) * smoothstep(0.12, 0.0, length(uv - vec2(0.30, 0.45))) * 0.75;
-  float body = 1.0 - smoothstep(0.0, 0.95, rr);
-  col = mix(col, vec3(0.05, 0.08, 0.12), body * 0.45);
-  alpha = (rim * 0.85 + arc * 0.50 + body * 0.08) * uWash;
+  col = mix(vec3(0.12, 0.16, 0.22), irid * 0.95, rim * 0.85);
+  col += vec3(1.0) * arc * 1.25;
+  col += vec3(1.0) * smoothstep(0.16, 0.0, length(uv - vec2(-0.33, 0.36))) * 1.1;
+  col += vec3(0.95) * smoothstep(0.10, 0.0, length(uv - vec2(0.30, 0.45))) * 0.85;
+  float body = 1.0 - smoothstep(0.0, 0.92, rr);
+  col = mix(col, vec3(0.07, 0.09, 0.14), body * 0.55);
+  alpha = (rim * 0.95 + arc * 0.55 + body * 0.10) * uWash;
   } else if (btype < 1.5) {
     // Тип 1 — молочная бусина: плотная матовая, мягкий ободок без радуги.
     float rim1 = smoothstep(0.45, 0.98, rr);
@@ -242,14 +242,14 @@ const bubbleFrag = `
   } else {
     // Тип 2 — капля-линза: почти прозрачное тело, тонкий яркий ободок,
     // усиленная каустика и двойной блик.
-    float rim2 = smoothstep(0.85, 0.99, rr);
+    float rim2 = smoothstep(0.82, 0.99, rr);
     float arc2 = smoothstep(0.80, 0.99, rr) * smoothstep(0.60, -0.30, uv.y + uv.x * 0.6);
     float body2 = 1.0 - smoothstep(0.0, 0.95, rr);
-    col = vec3(0.55, 0.62, 0.72) * body2 + vec3(1.0) * rim2 * 0.9;
-    col += vec3(1.0) * arc2 * 1.30;
-    col += vec3(1.0) * smoothstep(0.14, 0.0, length(uv - vec2(-0.33, 0.36)));
-    col += vec3(0.95) * smoothstep(0.10, 0.0, length(uv - vec2(0.30, 0.45))) * 0.70;
-    alpha = (rim2 * 0.85 + arc2 * 0.50 + body2 * 0.06) * uWash;
+    col = vec3(0.55, 0.62, 0.72) * body2 + vec3(1.0) * rim2 * 0.95;
+    col += vec3(1.0) * arc2 * 1.45;
+    col += vec3(1.0) * smoothstep(0.13, 0.0, length(uv - vec2(-0.33, 0.36)));
+    col += vec3(0.95) * smoothstep(0.09, 0.0, length(uv - vec2(0.30, 0.45))) * 0.80;
+    alpha = (rim2 * 0.90 + arc2 * 0.55 + body2 * 0.06) * uWash;
   }
 
   gl_FragColor = vec4(col, alpha);
@@ -347,69 +347,104 @@ water.material.uniforms.uWashFlow = uniforms.uWashFlow;
 // Без колец внутри частицы пена читалась как туман, а не как мыло.
 const foamFrag = `
   vec2 uv = gl_PointCoord * 2.0 - 1.0;
-  float r = length(uv);
+  // Немного вытянута по вертикали — пена стекает, тянется за потоком.
+  vec2 euv = vec2(uv.x * 1.2, uv.y * mix(1.0, 1.6, vLife));
+  float r = length(euv);
   if (r > 1.0) discard;
 
-  float core = 1.0 - smoothstep(0.45, 1.0, r);
-  float edge = smoothstep(1.0, 0.78, r);
+  // Тело хлопья: плотное ядро, рваный рыхлый край (как у сухой пены).
+  float body = 1.0 - smoothstep(0.25, 0.98, r);
+  // Рваный край — вязкая пена, а не диск.
+  float ang = atan(uv.y, uv.x);
+  float wob = 0.90 + 0.10 * (sin(ang * 3.0 + vSeed * 19.0) + sin(ang * 7.0 - vSeed * 43.0)) * 0.5;
+  body *= smoothstep(wob, wob * 0.72, r / wob);
+  float edge = smoothstep(1.0, 0.70, r / wob);
 
-  // 5 вложенных пузырьков внутри комка
-  float rings = 0.0;
-  for (int i = 0; i < 5; i++) {
+  // Пористая структура: 7 вложенных пузырьков воздуха разного размера.
+  // Часть пузырьков — крупные поры (вырезают альфу = дырки в пене),
+  // часть — мелкие (осветляют = блик на стенке пузырька).
+  float pores = 0.0;    // осветление стенок
+  float holes = 0.0;    // вырезание (пора)
+  for (int i = 0; i < 7; i++) {
     float fi = float(i);
     float h1 = fract(sin(vSeed * 91.7 + fi * 13.1) * 43758.5453);
     float h2 = fract(sin(vSeed * 57.3 + fi * 29.7) * 43758.5453);
     float h3 = fract(sin(vSeed * 33.1 + fi * 47.3) * 43758.5453);
-    vec2 c = (vec2(h1, h2) - 0.5) * 1.0;
-    float rad = 0.13 + h3 * 0.27;
-    float d = length(uv - c) / max(rad, 1e-3);
-    rings = max(rings, smoothstep(1.04, 0.82, d) * smoothstep(0.40, 0.90, d));
+    vec2 c = (vec2(h1, h2) - 0.5) * 1.1;
+    // Размер пузырька: 30% крупные поры, 70% мелкие.
+    float big = step(0.7, h3);
+    float rad = mix(0.06 + h3 * 0.18, 0.15 + h3 * 0.30, big);
+    float d = length(euv - c) / max(rad, 1e-3);
+    // Стенка пузырька: яркое кольцо.
+    float wall = smoothstep(1.06, 0.88, d) * smoothstep(0.55, 0.92, d);
+    pores = max(pores, wall * mix(0.65, 1.0, big));
+    // Крупная пора вырезает часть тела — пористость.
+    holes = max(holes, smoothstep(1.0, 0.65, d) * big);
   }
 
-  vec3 col = vec3(0.88, 0.92, 0.96) + rings * 0.50;
+  // Базовый цвет: кремовая пена — ярче на золотых волосах.
+  vec3 col = vec3(0.96, 0.98, 1.0);
+  // Стенки пузырьков ярче — читается пористость.
+  col += vec3(0.07) * pores;
   // Кремовость: верх-лево тёплый свет, низ-право холодная тень.
-  col *= 0.86 + 0.14 * (uv.y * 0.5 + 0.5) + vec3(0.03, 0.01, -0.02) * (uv.x * 0.5 + 0.5);
-  // Блёстки мокрого мыла: редкие яркие точки по хэшу.
-  float sp = step(0.965, fract(sin(dot(floor(uv * 9.0), vec2(12.9898, 78.233)) + vSeed * 3.0) * 43758.5453));
-  col += vec3(1.0) * sp * 0.9;
-  gl_FragColor = vec4(col, clamp((core * 0.50 + rings * 0.42) * edge * vLife * uWash, 0.0, 1.0));
+  col *= 0.88 + 0.16 * (uv.y * 0.5 + 0.5) + vec3(0.04, 0.02, -0.01) * (uv.x * 0.5 + 0.5);
+  // Редкие блёстки мокрого мыла.
+  float sp = step(0.94, fract(sin(dot(floor(euv * 8.0), vec2(12.9898, 78.233)) + vSeed * 3.0) * 43758.5453));
+  col += vec3(1.0) * sp * 0.85;
+
+  // Альфа: тело минус поры плюс стенки — плотнее, чтобы объём читался.
+  float a = (body * (1.0 - holes * 0.55) + pores * 0.55 * body) * 1.15;
+  a = clamp(a * vLife * uWash, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
 `;
-const FOAM_CLOUDS = qn('pfp_foamclouds', 17, 1, 200);
-const FOAM_PER = qn('pfp_foampp', 18, 5, 40);
+const FOAM_CLOUDS = qn('pfp_foamclouds', 42, 1, 200);
+const FOAM_PER = qn('pfp_foampp', 28, 5, 40);
 export const foamRivulet = makePoints(FOAM_CLOUDS * FOAM_PER, foamFrag, {
-  size: 0.16, sizePow: 1.1, sizeMin: 0.70,
+  size: 0.52, sizePow: 1.5, sizeMin: 0.34,
   span: LEN * 0.92, depthTest: false, renderOrder: 4,
   vert: `
-  // Облако едет как целое: все его частицы делят одну базу (aExtra), поэтому
-  // держатся кучей. Раньше частицы вытягивались в цепочку по y — это и
-  // читалось как перхоть.
+  // Вязкая пена прижата к пучку: стекает вниз, следуя за изгибом прядей.
+  // Группы слипаются в хлопья (aExtra = фаза/слот/азимут/размер группы).
+  // Размеры варьируются: крупные массивные хлопья + мелкие частицы
+  // (sizePow в makePoints сдвигает распределение к мелким, крупные редки).
   float t = uTime;
-  float b = 0.10 + fract(t * (0.024 + aExtra.z * 0.030) + aExtra.x) * 0.50;
-  vLife = smoothstep(0.0, 0.05, b) * (1.0 - smoothstep(0.58, 0.92, b));
-  // Растворение облаков по одному (§7.7): каждое тает в свой момент фронта,
-  // разброс по хэшу облака (aExtra.x) — а не все разом по общему гейту.
-  float melt = 1.0 - smoothstep(0.80, 1.0, clamp(uWashFlow + (aExtra.x - 0.5) * 0.15, 0.0, 1.0));
+  float phase = aExtra.x;   // фаза группы — старт потока
+  float slot  = aExtra.y;   // позиция частицы в группе 0→1
+  float azGrp = aExtra.z;   // азимут группы на пучке
+
+  // Вязкое стекание: медленно, с «прилипанием» — скорость варьируется
+  // по группе, хвост подтягивается за головой.
+  float speed = 0.022 + azGrp * 0.018;
+  float u = fract(phase + t * speed);
+  // Частицы группы тянутся друг к другу — слипание: slot сжимается к центру.
+  float clump = 0.55 + 0.45 * sin(t * 0.3 + phase * 12.0);   // пульс слипания
+  float slotC = mix(slot, 0.5, clump * 0.4);                  // хвост подтягивается
+
+  vLife = 1.0 - smoothstep(0.82, 1.0, u);
+  // Таяние по фронту: группа за группой.
+  float melt = 1.0 - smoothstep(0.80, 1.0, clamp(uWashFlow + (phase - 0.5) * 0.15, 0.0, 1.0));
   vLife *= melt;
 
-  float halfW = mix(0.41, 0.62, 1.0 - clamp(b, 0.0, 1.0));
-  // Азимут по фронту bundle: облака липнут к разным прядям, а не висят
-  // все в одной плоскости. Плюс покачивание.
-  float az = (aExtra.z - 0.5) * 1.5;
-  // Только поперечный компонент от halfW масштабируется вместе с шириной
-  // пучка; покачивание (0.07) — это собственное движение облака, его
-  // растягивать нельзя, иначе облако «разъезжается» по вертикали.
-  float cx = sin(az) * halfW * 0.95 * uBundleK + sin(t * 0.45 + aExtra.x * 20.0) * 0.07;
-  float cz = cos(az) * halfW * 0.80 * uBundleK;
+  // Внутрь пучка: радиус 0.62–0.85 от halfW — пена сидит В волосах,
+  // а не только на поверхности. halfW уже включает uBundleK (узел).
+  float halfW = mix(0.41, 0.62, 1.0 - clamp(u, 0.0, 1.0)) * uBundleK;
+  float ang = (azGrp - 0.5) * 1.5;             // азимут группы (узкий сектор)
+  float front = cos(ang);
+  float r = halfW * (0.62 + aDrop.w * 0.23);   // ВНУТРИ волос, ближе к центру
+  float y = uTop - (u + slotC * 0.12) * uSpan; // хвост ниже головы
 
-  // Компактное облако: смещение частицы внутри шара
-  float spread = 0.15 + aExtra.w * 0.06;
-  p = vec3(
-    cx + aDrop.x * spread,
-    uTop - b * uSpan + aDrop.y * spread * 1.5,
-    cz + aDrop.z * spread * 0.55
-  );
-  sz *= 0.78 + aExtra.w * 0.45;
-  sz *= 0.4 + 0.6 * melt;
+  // Вязкое покачивание: пена медленно колышется, не дрожит.
+  float visc = sin(t * 0.35 + phase * 18.0 + slotC * 4.0) * 0.025 * front;
+  float zBulge = cos(ang) * r * 0.8 + visc;    // слегка выпирает вперёд
+  p = vec3(sin(ang) * r + visc * 0.5, y, zBulge);
+
+  // Объём: 30% крупные массивные хлопья, 70% мелкие частицы.
+  // aExtra.w = размер группы (hash): крупные группы дают крупные хлопья.
+  float big = step(0.7, aExtra.w);
+  sz *= mix(0.75, 2.4, big);                   // больше объём
+  sz *= (0.6 + 0.4 * front) * (0.4 + 0.6 * melt);
+  // Хвост тоньше головы — вязкая нить.
+  sz *= 0.55 + 0.45 * (1.0 - slotC);
   `,
 });
 foamRivulet.material.uniforms.uWashFlow = uniforms.uWashFlow;
@@ -426,24 +461,19 @@ foamRivulet.material.uniforms.uWashFlow = uniforms.uWashFlow;
   };
   for (let i = 0; i < total; i++) {
     const cloud = Math.floor(i / FOAM_PER);
-    // Смещение внутри облака — точка в шаре (кубическое отклонение даёт
-    // равномерное заполнение, в отличие от суммы трёх uniform)
-    let x = 0, y = 0, z = 0, s2 = 0;
-    do {
-      x = Math.random() * 2 - 1;
-      y = Math.random() * 2 - 1;
-      z = Math.random() * 2 - 1;
-      s2 = x * x + y * y + z * z;
-    } while (s2 > 1 || s2 < 1e-6);
-    d[i * 4] = x;
-    d[i * 4 + 1] = y;
-    d[i * 4 + 2] = z;
-    d[i * 4 + 3] = Math.random();
+    const slot = (i % FOAM_PER) / (FOAM_PER - 1);
+    // ДЖИТТЕР внутри хлопья: маленький, чтобы частицы слипались в комок,
+    // а не разлетались. Разброс ~0.08 — плотное слипание.
+    const jit = 0.08;
+    d[i * 4]     = (Math.random() - 0.5) * jit;   // x — джиттер
+    d[i * 4 + 1] = slot * 1.2 - 0.6;              // y — цепочка вниз (слот)
+    d[i * 4 + 2] = (Math.random() - 0.5) * jit;   // z — джиттер
+    d[i * 4 + 3] = Math.random();                  // размер частицы (разброс)
 
-    a[i * 4] = hash(cloud + 1);                    // случайная фаза
-    a[i * 4 + 1] = (i % FOAM_PER) / (FOAM_PER - 1); // слот
-    a[i * 4 + 2] = hash(cloud + 91);               // скорость + азимут
-    a[i * 4 + 3] = hash(cloud + 211);              // размер облака
+    a[i * 4]     = hash(cloud + 1);   // фаза группы (старт потока, псевдорандом)
+    a[i * 4 + 1] = slot;              // слот в группе 0→1
+    a[i * 4 + 2] = hash(cloud + 91);  // азимут группы на пучке (псевдорандом)
+    a[i * 4 + 3] = hash(cloud + 211); // размер группы (псевдорандом: крупная/мелкая)
   }
   foamRivulet.geometry.attributes.aExtra.needsUpdate = true;
   foamRivulet.geometry.attributes.aDrop.needsUpdate = true;

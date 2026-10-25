@@ -1,13 +1,48 @@
 {% extends "base.html" %}
-{% block title %}Мои записи{% endblock %}
+{% block title %}Личный кабинет{% endblock %}
 {% block content %}
-<h1>Мои записи</h1>
+<div class="cabinet-head">
+  <p class="kicker">Личный кабинет</p>
+  <h1 class="font-display">Здравствуйте!</h1>
+  <p class="muted">Уровень «{{ level_name }}» — скидка {{ "%.0f"|format(level_discount*100) }}% на все услуги{% if birthday_discount > 0 %} · именной скидки ко дню рождения: {{ "%.0f"|format(birthday_discount*100) }}%{% endif %}</p>
+  {% if next_threshold > 0 %}
+  <div class="progress" role="progressbar" aria-valuenow="{{ next_threshold - to_next }}" aria-valuemin="0" aria-valuemax="{{ next_threshold }}">
+    <i style="width: {{ ((next_threshold - to_next) / next_threshold * 100) | round(0) | int }}%"></i>
+  </div>
+  <p class="mini">{% if to_next > 0 %}До следующего уровня — ещё {{ to_next }} {{ to_next == 1 and 'визит' or (to_next < 5 and 'визита' or 'визитов') }}{% else %}Максимальный уровень достигнут{% endif %}</p>
+  {% endif %}
+</div>
+
+<!-- Ближайшие записи -->
+<h2>Ближайшие записи</h2>
+{% for b, s, f, m in upcoming %}
+<div class="next-visit">
+  <div class="next-when">
+    <b>{{ b.start_at.strftime("%d.%m, %H:%M") }}</b>
+    <span class="mini">{{ f.name }} · мастер {{ m.email.split('@')[0] }}</span>
+  </div>
+  <div class="next-what">
+    <b>{{ s.name }}</b>
+    <span class="mini">{{ s.duration_min }} мин · {{ "%.0f"|format((s.price_kopeks - (b.discount_kopeks or 0)) / 100) }} ₽</span>
+  </div>
+  <form method="post" action="/cancel/{{ b.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn ghost">Отменить</button>
+  </form>
+</div>
+{% else %}
+<div class="card" style="display:flex;align-items:center;gap:1rem;justify-content:space-between;flex-wrap:wrap">
+  <span>Записей пока нет — самое время выбрать услугу.</span>
+  <a class="btn" href="/filials">Записаться</a>
+</div>
+{% endfor %}
+
+<!-- Лояльность -->
 <div class="stat">
-<div class="card"><b>{{ visits }}</b>визитов</div>
-<div class="card"><b>{{ level_name }}</b>уровень</div>
-<div class="card"><b>{{ "%.0f"|format(level_discount*100) }}%</b>скидка</div>
-{% if to_next > 0 %}<div class="card"><b>{{ to_next }}</b>до {{ next_threshold }} визитов</div>{% endif %}
-{% if birthday_discount > 0 %}<div class="card"><b>{{ "%.0f"|format(birthday_discount*100) }}%</b>скидка ко дню рождения активна!</div>{% endif %}
+  <div class="card"><b>{{ visits }}</b>визитов</div>
+  <div class="card"><b>{{ level_name }}</b>уровень</div>
+  <div class="card"><b>{{ "%.0f"|format(level_discount*100) }}%</b>скидка</div>
+  {% if birthday_discount > 0 %}<div class="card"><b>{{ "%.0f"|format(birthday_discount*100) }}%</b>ко дню рождения</div>{% endif %}
 </div>
 
 <!-- Чат с управляющим -->
@@ -27,12 +62,21 @@
 </div>
 </div>
 
-<h2>История</h2>
-<table><tr><th>Когда</th><th>Услуга</th><th>Скидка</th><th>Статус</th><th></th></tr>
-{% for b, s in rows %}
-<tr><td>{{ b.start_at.strftime("%d.%m %H:%M") }}</td><td>{{ s.name }}</td><td>{% if b.discount_kopeks %}−{{ "%.0f"|format(b.discount_kopeks/100) }} ₽{% else %}—{% endif %}</td><td>{{ b.status }}</td>
-<td>{% if b.status == 'pending' %}<form method="post" action="/cancel/{{ b.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Отменить</button></form>{% endif %}</td></tr>
-{% else %}<tr><td colspan="5">Записей нет</td></tr>
+<!-- История -->
+<h2>История визитов</h2>
+<table>
+<tr><th>Когда</th><th>Услуга</th><th>Где</th><th>Цена</th><th>Статус</th></tr>
+{% set ST = {'pending':'Ожидает','paid':'Оплачена','done':'Выполнена','cancelled':'Отменена'} %}
+{% for b, s, f, m in past %}
+<tr>
+  <td>{{ b.start_at.strftime("%d.%m.%Y %H:%M") }}</td>
+  <td>{{ s.name }}</td>
+  <td>{{ f.name }}</td>
+  <td>{{ "%.0f"|format((s.price_kopeks - (b.discount_kopeks or 0)) / 100) }} ₽{% if b.discount_kopeks %} <s class="mini">{{ "%.0f"|format(s.price_kopeks / 100) }} ₽</s>{% endif %}</td>
+  <td><span class="badge {{ b.status }}">{{ ST.get(b.status, b.status) }}</span></td>
+  <td></td>
+</tr>
+{% else %}<tr><td colspan="5">История пуста</td></tr>
 {% endfor %}
 </table>
 {% endblock %}

@@ -360,3 +360,16 @@ body.nav-ready header.top{transform:none;opacity:1}
 .modal-card{background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:1.5rem;max-width:380px}
 .modal-card p{color:var(--muted)}
 .modal-actions{display:flex;gap:.7rem;margin-top:1rem}
+
+/* ---- Кабинет клиента ---- */
+.badge{display:inline-block;padding:.14rem .65rem;border-radius:999px;font-size:.75rem;font-weight:600;white-space:nowrap}
+.badge.pending{background:rgba(232,179,75,.16);color:var(--acc)}
+.badge.paid,.badge.done{background:rgba(123,201,111,.16);color:var(--ok)}
+.badge.cancelled{background:rgba(226,109,109,.16);color:var(--bad)}
+.progress{height:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:.7rem 0 .3rem;max-width:420px}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,#c89434,var(--acc));border-radius:999px}
+.next-visit{display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;background:linear-gradient(90deg,rgba(232,179,75,.10),transparent 70%),var(--card);border:1px solid rgba(232,179,75,.45);border-radius:var(--radius);padding:1rem 1.2rem;margin:.6rem 0 1.2rem}
+.next-visit .next-when b{font-size:1.15rem;color:var(--acc)}
+.next-visit form{margin-left:auto}
+.next-what,.next-when{display:flex;flex-direction:column;gap:.15rem;min-width:150px}
+.cabinet-head{margin-bottom:1.5rem}

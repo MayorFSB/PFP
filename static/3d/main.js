@@ -17,6 +17,8 @@ import {
   retargetStrands, perfT, successT0, drawn, strandCap,
 } from './director.js';
 import { MAX_STRANDS, SEG, GOV_MIN } from './config.js';
+import './bg.js';                 // фоновый свет (side-effect: добавляет пятно + scene.background)
+import { composer } from './post.js';
 
 export const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const off = localStorage.getItem('pfp-particles-off') === '1';
@@ -46,7 +48,7 @@ function renderStatic() {
   uniforms.uTime.value = 2.0;
   updateMouseGlow();
   uniforms.uMouse.value.set(mouse.x, mouse.y);
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 // До старта цикла: uRes нужен первому же кадру, иначе расширение линий в
@@ -141,10 +143,11 @@ if (reduced || off) {
     uniforms.uScroll.value = p;
     applyPhases(p, t);
     updateMouseGlow();
-    // Салют отсчитывается от момента входа на финальную стадию (см. director).
+    // Салют отключён (выглядел как раздувание волос): uSuccess больше не
+    // поднимается, successT0/salute остаются для совместимости вызова кнопки.
     const st = (t - (successT0 - EPOCH)) / 2.5;
-    uniforms.uSuccess.value = st >= 0 && st <= 1 ? Math.sin(st * Math.PI) : 0;
-    renderer.render(scene, camera);
+    void st;
+    composer.render();
   }
 
   setStrands(strandCap);
@@ -157,6 +160,7 @@ if (reduced || off) {
 addEventListener('resize', () => {
   syncCameraAspect();
   renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
   retargetStrands();
   syncResolution(renderer.getPixelRatio());
   if (reduced || off) renderStatic();

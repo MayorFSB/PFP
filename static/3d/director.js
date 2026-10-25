@@ -14,11 +14,11 @@
 // принадлежит — он идёт через resetShared + вклад, а не через присваивание.
 import * as THREE from 'three';
 import { uniforms, geo, VPL } from './hair.js';
-import { steam, washLayers, bundleLayers, sizedLayers, bubbles } from './particles.js';
+import { steam, sprayFast, sprayCloud, washLayers, bundleLayers, sizedLayers, bubbles } from './particles.js';
 import { mouse, mTarget, setStatus, halfViewW, getPR, camera } from './core.js';
 import { look } from './look.js';
 import { syncGumSize } from './gum.js';
-import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES } from './config.js';
+import { MAX_STRANDS, SEG, GOV_MIN, strandsForWidth, WIDTH_FRAC, BUNDLE_R, PHASE, TL, ACTIVE_PHASES, PARTICLES_OFF } from './config.js';
 // Отладка ?wash=0.38: фиксирует глобальный p (игнорит скролл, UI стадий
 // замирает). Доли 0..1 как в спеке §12; qn не подходит (там parseInt).
 const washQ = (() => {
@@ -131,6 +131,14 @@ export function applyPhases(p, t) {
   resetShared();
   for (const ph of PHASES) ph.apply(p, t);
   steam.visible = steam.material.uniforms.uSteam.value > 0.01;
+  // PARTICLES_OFF (config.js): все point-спрайтовые системы, кроме пара,
+  // гасим ПОСЛЕ фаз — фазы пишут visible каждый кадр, гейт обязан быть последним.
+  // Список = bundleLayers (все wash-слои + cutBits + glitter) + струи лака.
+  if (PARTICLES_OFF) {
+    for (const pts of bundleLayers()) pts.visible = false;
+    sprayFast.visible = false;
+    sprayCloud.visible = false;
+  }
   applyGrade(p);
 }
 
