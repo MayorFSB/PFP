@@ -103,10 +103,16 @@ k6 run load/slots.js   # ENV: BASE, LOAD_FILIAL, LOAD_MASTER, LOAD_SERVICE
 
 | метрика | значение | порог |
 |---|---|---|
-| `http_req_duration` p95 | **16.3 ms** | <800 ms |
-| слоты p95 (name:slots) | **13.3 ms** | <200 ms |
+| `http_req_duration` p95 | **19.9 ms** | <800 ms |
+| слоты p95 (name:slots) | **11.1 ms** (кэш) | <200 ms |
+| слоты p95 при упавшем Valkey | **569 ms**, 0% ошибок — деградация на БД, не отказ | — |
 | `http_req_failed` | **0.00%** | <1% |
 | cache hit ratio (slots, Prometheus) | **~98.6%** | — |
+
+Деградация: при недоступном Valkey `cache.cached()` читает напрямую из БД
+(таймаут соединения 0.5с), эндпоинт отдаёт 200 — медленно, но не 500.
+
+![Метрики Prometheus: кэш и деградация](docs/img/metrics.png)
 
 
 ## Структура

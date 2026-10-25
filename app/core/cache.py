@@ -14,7 +14,11 @@ _client: redis.Redis | None = None
 def get_client() -> redis.Redis:
     global _client
     if _client is None:
-        _client = redis.from_url(settings.valkey_url, decode_responses=False)
+        # socket_connect_timeout: при упавшем Valkey деградация на БД занимает
+        # миллисекунды, а не дефолтные секунды ожидания сокета
+        _client = redis.from_url(
+            settings.valkey_url, decode_responses=False, socket_connect_timeout=0.5
+        )
     return _client
 
 
@@ -35,20 +39,32 @@ async def cached(key: str, ttl: int, loader: Any) -> Any:
 
     prefix = key.split(":")[1] if ":" in key else "misc"
     r = get_client()
-    hit = await r.get(key)
+    try:
+        hit = await r.get(key)
+    except redis.RedisError:
+        # Valkey недоступен — деградируем до прямого чтения из БД,
+        # эндпоинт остаётся живым (медленнее, но не 500)
+        cache_miss.labels(prefix).inc()
+        return await loader()
     if hit is not None:
         cache_hits.labels(prefix).inc()
         assert isinstance(hit, bytes)
         return unpack(hit)
     cache_miss.labels(prefix).inc()
     value = await loader()
-    await r.set(key, pack(value), ex=ttl)
+    try:
+        await r.set(key, pack(value), ex=ttl)
+    except redis.RedisError:
+        pass
     return value
 
 
 async def invalidate(*keys: str) -> None:
     if keys:
-        await get_client().delete(*keys)
+        try:
+            await get_client().delete(*keys)
+        except redis.RedisError:
+            pass  # бронь уже сохранена в БД; TTL в кэше дотянет консистентность
 
 
 def slots_key(filial_id: str, day: str) -> str:
