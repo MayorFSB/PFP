@@ -2,7 +2,14 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  # k8s/compose-демо: приложение как сервис "app"
   - job_name: pfp
     static_configs:
       - targets: ["app:8000"]
+    metrics_path: /metrics
+  # локальный запуск: uvicorn на хосте (compose и k8s эту цель не видят —
+  # цель просто останется down, шума в дашборде не добавляет)
+  - job_name: pfp-local
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
     metrics_path: /metrics
