@@ -62,7 +62,7 @@ async def test_web_login_and_cabinet(client: httpx.AsyncClient) -> None:
     )
     assert r.status_code in (200, 303)
     cab = await client.get("/cabinet")
-    assert cab.status_code == 200 and "Мои записи" in cab.text
+    assert cab.status_code == 200 and "Ближайшие записи" in cab.text
 
 
 async def test_manager_admin_rbac(client: httpx.AsyncClient) -> None:

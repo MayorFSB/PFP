@@ -33,8 +33,25 @@ def create_app() -> FastAPI:
 
     @app.get("/ready")
     async def ready() -> JSONResponse:
-        # День 2+: проверка postgres + valkey. Пока заглушка.
-        return JSONResponse({"ready": True})
+        from sqlalchemy import text
+
+        from app.core.cache import get_client
+        from app.core.db import engine
+
+        checks: dict[str, str] = {}
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            checks["postgres"] = "ok"
+        except Exception:
+            checks["postgres"] = "fail"
+        try:
+            await get_client().ping()
+            checks["valkey"] = "ok"
+        except Exception:
+            checks["valkey"] = "fail"
+        ok = all(v == "ok" for v in checks.values())
+        return JSONResponse({"ready": ok, **checks}, status_code=200 if ok else 503)
 
     @app.get("/api/v1/ping")
     async def ping() -> JSONResponse:
