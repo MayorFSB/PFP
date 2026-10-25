@@ -42,7 +42,7 @@ async def cached(key: str, ttl: int, loader: Any) -> Any:
         return unpack(hit)
     cache_miss.labels(prefix).inc()
     value = await loader()
-    await r.setex(key, ttl, pack(value))
+    await r.set(key, pack(value), ex=ttl)
     return value
 
 

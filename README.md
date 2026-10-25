@@ -1,12 +1,15 @@
 # PFP — сеть парикмахерских (FastAPI portfolio, Middle+/Senior)
 
 ![ci](https://github.com/MayorFSB/PFP/actions/workflows/ci/badge.svg)
+![python](https://img.shields.io/badge/python-3.14-blue)
 
 Полный цикл бэкенд-проекта: auth с ротацией refresh, RBAC, недельное расписание, бронь без
 двойных записей (Postgres exclusion constraint), кэш Valkey, SSR + JSON API, оплата-заглушка,
 Prometheus/Grafana/Loki, CI/CD, Helm + k8s демо через Cloudflare Tunnel.
 
 Stack: Python 3.14 / FastAPI async / SQLAlchemy 2.0 / PostgreSQL 16 / Valkey / Docker / k3d + Helm.
+
+Почему так, а не иначе — разбор ключевых решений: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Демо
 
