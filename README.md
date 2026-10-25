@@ -76,14 +76,42 @@ helm install pfp deploy/helm/pfp  # миграции — initContainer, RollingU
 cloudflared tunnel --url http://localhost:80
 ```
 
+## Hero: 3D-симуляция мытья головы (three.js)
+
+На главной — интерактивная 3D-сцена: ~300 волос-прядей с физикой (wet-clump, sag,
+wash-flow), пена, пузыри, пар; «мойка» смывает грязь в реальном времени. Полностью
+собственный код (без сборки, ES-модули): директор фаз, планировщик бюджета кадра
+под iGPU, системы частиц, post-processing (ACES + bloom). Параметрический тюн
+вынесен в JSON (`static/3d/look-wash.json`) — правки живут без пересборки.
+
+![3D hero](docs/img/hero3d.png)
+
+## Нагрузочное
+
+`load/slots.js` (k6) — прогон эндпоинта слотов (кэш Valkey против БД):
+
+```bash
+k6 run load/slots.js
+```
+
 ## Структура
 
 ```
-app/core/      config, db, security(argon2), jwt, cache(valkey+gzip), metrics
-app/modules/   auth, booking, payments, web(SSR), seed(faker)
-app/migrations/ 0001..0005 (auth_sessions, schedule, profiles, exclusion, unique)
-templates/ static/   SSR
-deploy/helm/pfp      Helm chart
-observability/       prometheus, grafana, loki, promtail
-tests/             25 тестов (api + unit)
+app/core/        config, db, security(argon2id), jwt(+ротация refresh), cache(valkey+gzip), metrics, guard(CSP)
+app/modules/
+  auth/          пароли, Google OIDC, Telegram Login, роли, сессии с reuse detection
+  booking/       слоты из schedule_rules, бронь (idempotency + exclusion), отмена
+  payments/      Strategy: Provider + FakeProvider, идемпотентный webhook
+  chat/          чат с управляющим (WS) + Gemma structured output
+  loyalty.py     уровни, дни рождения, прогресс до следующего уровня
+  perks.py       промокоды, семейные подписки, поинты, leaderboard мастеров
+  web/           SSR-страницы: pages, auth_pages, cabinets, dashboards (+CSRF)
+  seed.py        идемпотентный фейк-сид (200 клиентов, 300 визитов)
+app/migrations/  0001..0007 + chat_messages (sessions, schedule, profiles, exclusion, perks)
+static/3d/       three.js hero-сцена (hair, particles, phases, post)
+templates/       Jinja SSR (cabinet, master, manager, admin, ...)
+deploy/helm/pfp  Helm chart (миграции в initContainer, RollingUpdate)
+observability/   prometheus, grafana (дашборд), loki, promtail
+load/slots.js    k6-сценарий слотов
+tests/           52 теста (API, SSR, JWT, слоты, пароли)
 ```
