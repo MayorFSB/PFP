@@ -43,8 +43,13 @@ export default function (data) {
   let r = http.get(`${BASE}/`);
   check(r, { 'ssr ok': (x) => x.status === 200 });
 
+  // случайный день из ближайших двух недель: фиксированный день выкупается
+  // бронями за пару прогонов, и тест деградирует в одни 409
+  const day = new Date(Date.now() + Math.floor(Math.random() * 14) * 86400000)
+    .toISOString()
+    .slice(0, 10);
   r = http.get(
-    `${BASE}/api/v1/slots?filial_id=${FILIAL}&master_id=${MASTER}&service_id=${SERVICE}&day=2026-10-06`,
+    `${BASE}/api/v1/slots?filial_id=${FILIAL}&master_id=${MASTER}&service_id=${SERVICE}&day=${day}`,
     { tags: { name: 'slots' } }
   );
   check(r, { 'slots ok': (x) => x.status === 200 });
