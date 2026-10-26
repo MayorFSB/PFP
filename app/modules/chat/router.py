@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import guard
 from app.core.db import get_session
 from app.modules.auth.deps import ACCESS_COOKIE, get_current_user
 from app.modules.chat import service as chat_svc
@@ -79,6 +80,16 @@ async def ws_chat(websocket: WebSocket, session: AsyncSession = Depends(get_sess
                 content = (data.get("content") or "").strip()
                 if not content:
                     continue
+                if not await guard.chat_allowed(str(user.id)):
+                    await websocket.send_json(
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": "Вы написали слишком много сообщений подряд — "
+                            "ответьте, пожалуйста, через минуту.",
+                        }
+                    )
+                    continue
 
                 # Сохраняем сообщение пользователя
                 await chat_svc.save_message(session, str(user.id), "user", content)
@@ -123,6 +134,12 @@ async def chat_send(
     content = content.strip()
     if not content:
         return {"ok": False}
+    if not await guard.chat_allowed(str(user.id)):
+        return {
+            "ok": True,
+            "reply": "Вы написали слишком много сообщений подряд — "
+            "ответьте, пожалуйста, через минуту.",
+        }
     await chat_svc.save_message(session, str(user.id), "user", content)
     reply = await chat_svc.generate_reply(session, user, content)
     await chat_svc.save_message(session, str(user.id), "assistant", reply)

@@ -29,6 +29,9 @@ HEADERS = {
 LOGIN_LIMIT = 10
 LOGIN_WINDOW = 60
 
+CHAT_LIMIT = 10
+CHAT_WINDOW = 60
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """CSP с nonce на каждый запрос + базовые заголовки. nonce попадает в request.state."""
@@ -53,4 +56,18 @@ async def login_allowed(ip: str, email: str = "") -> bool:
             await r.expire(key, LOGIN_WINDOW)
         return n <= LOGIN_LIMIT
     except Exception:  # noqa: BLE001 — fail open: без Valkey не блокируем вход
+        return True
+
+
+async def chat_allowed(user_id: str) -> bool:
+    """Лимит сообщений чата на пользователя. Защищает квоту внешнего LLM API:
+    пользователь увидит вежливую просьбу подождать, а не ошибку провайдера."""
+    try:
+        r = cache.get_client()
+        key = f"pfp:rl:chat:{user_id}"
+        n = await r.incr(key)
+        if n == 1:
+            await r.expire(key, CHAT_WINDOW)
+        return n <= CHAT_LIMIT
+    except Exception:  # noqa: BLE001 — fail open: чат дороже ложных блокировок не стоит
         return True

@@ -78,3 +78,20 @@ async def test_chat_roundtrip() -> None:
         hist = await chat.get_recent_messages(s, str(u.id), limit=5)
     assert [m.role for m in hist] == ["user", "assistant"]
     assert hist[0].content == "Привет!"
+
+
+async def test_chat_rate_limit() -> None:
+    from app.core import guard
+
+    uid = uuid.uuid4().hex
+    try:
+        assert await guard.chat_allowed(uid)
+        for _ in range(guard.CHAT_LIMIT - 1):
+            await guard.chat_allowed(uid)
+        assert not await guard.chat_allowed(uid)  # 11-й в окне — блок
+        # другой пользователь не задет
+        assert await guard.chat_allowed(uuid.uuid4().hex)
+    finally:
+        from app.core.cache import get_client
+
+        await get_client().delete(f"pfp:rl:chat:{uid}")
