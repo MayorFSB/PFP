@@ -76,6 +76,92 @@ FILIAL_RENAMES = {"Юг": "Парикмахерская имени Рикард�
 SPECS = ["барбер", "колорист", "стилист", "универсал", "детский мастер"]
 DEMO_PW = "demo1234"
 
+# Транслит частых имён/фамилий для реалистичных email (ru Faker → латиница)
+TRANSLIT = {
+    "Александр": "alexander",
+    "Алексей": "alexey",
+    "Анна": "anna",
+    "Андрей": "andrey",
+    "Вероника": "veronika",
+    "Вадим": "vadim",
+    "Григорий": "grigory",
+    "Дмитрий": "dmitry",
+    "Елена": "elena",
+    "Егор": "egor",
+    "Иван": "ivan",
+    "Ирина": "irina",
+    "Игорь": "igor",
+    "Ксения": "ksenia",
+    "Лариса": "larisa",
+    "Мария": "maria",
+    "Максим": "maksim",
+    "Николай": "nikolay",
+    "Ольга": "olga",
+    "Павел": "pavel",
+    "Роман": "roman",
+    "Сергей": "sergey",
+    "Татьяна": "tatyana",
+    "Юлия": "yulia",
+    "Фёдор": "fyodor",
+    "Смирнов": "smirnov",
+    "Иванов": "ivanov",
+    "Кузнецов": "kuznetsov",
+    "Соколов": "sokolov",
+    "Попов": "popov",
+    "Лебедев": "lebedev",
+    "Козлов": "kozlov",
+    "Новиков": "novikov",
+    "Морозов": "morozov",
+    "Петров": "petrov",
+    "Волков": "volkov",
+    "Семёнов": "semyonov",
+    "Егоров": "egorov",
+    "Павлов": "pavlov",
+    "Козлова": "kozlova",
+    "Николаев": "nikolaev",
+    "Захаров": "zakharov",
+    "Смирнова": "smirnova",
+    "Иванова": "ivanova",
+    "Морозова": "morozova",
+}
+
+# Посимвольный транслит для имён, не попавших в TRANSLIT
+CHART: dict[str, str] = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "e",
+    "ж": "zh",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "kh",
+    "ц": "ts",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "shch",
+    "ъ": "",
+    "ы": "y",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+}
+
 
 async def ensure_filials() -> list[Filial]:
     async with SessionLocal() as s:
@@ -165,11 +251,46 @@ async def ensure_masters(filials: list[Filial], n: int = 12) -> list[User]:
 
 
 async def ensure_clients(n: int = 200) -> int:
-    """Массовые клиенты — bulk insert батчами с DO NOTHING (гэпы в нумерации не страшны)."""
+    """Массовые клиенты — bulk insert батчами с DO NOTHING (гэпы в нумерации не страшны).
+
+    Первые 200 — прежние безликие clientNNNNN@demo.local (на них завязаны визиты).
+    Новые — реалистичные email из транслита ФИО.
+    """
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+    def _tr(word: str) -> str:
+        # посимвольный транслит — TRANSLIT-словарь покрывает частые целиком,
+        # таблица добивает остаток, чтобы email всегда были ASCII
+        if word in TRANSLIT:
+            return TRANSLIT[word]
+        if word in {w.title(): w for w in TRANSLIT.values()}:
+            # частые имена словарём в нижнем регистре — титульные тоже
+            pass
+        out = "".join(CHART.get(it, CHART.get(it.lower(), "")) for it in word)
+        # заглавная первая буква — транслит в нижнем регистре всё равно уйдёт в .lower()
+        return out or "user"
+
+    async def realistic_emails(count: int, offset: int) -> list[str]:
+        out = []
+        for j in range(count):
+            first, last = fake.first_name(), fake.last_name()
+            email = f"{_tr(first)}.{_tr(last)}{offset + j}@example.ru".lower()
+            out.append(email)
+        return out
+
     async with SessionLocal() as s:
-        for start in range(0, n, 500):
+        # строго нумерованные clientNNNNN@demo.local: LIKE 'client%' зацепил бы
+        # и демо-аккаунт client@demo.local — счётчик уезжал на +1 за прогон
+        legacy = (
+            await s.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(User.email.regexp_match(r"^client\d{5}@demo\.local$"))
+            )
+            or 0
+        )
+        fresh = max(0, n - legacy)  # не дублируем прежние безликие
+        for start in range(0, legacy, 500):
             stmt = (
                 pg_insert(User)
                 .values(
@@ -179,9 +300,18 @@ async def ensure_clients(n: int = 200) -> int:
                             "password_hash": "!",
                             "role": Role.client,
                         }
-                        for j in range(min(500, n - start))
+                        for j in range(min(500, legacy - start))
                     ]
                 )
+                .on_conflict_do_nothing(index_elements=["email"])
+            )
+            await s.execute(stmt)
+            await s.commit()
+        for start in range(0, fresh, 500):
+            batch = await realistic_emails(min(500, fresh - start), start)
+            stmt = (
+                pg_insert(User)
+                .values([{"email": e, "password_hash": "!", "role": Role.client} for e in batch])
                 .on_conflict_do_nothing(index_elements=["email"])
             )
             await s.execute(stmt)
@@ -253,6 +383,56 @@ async def ensure_visits(services: list[Service], masters: list[User], n: int = 3
         return len(rows)
 
 
+async def ensure_upcoming(services: list[Service], masters: list[User], n: int = 60) -> int:
+    """Будущие брони (pending) на ближайшие 2 недели — чтобы кабинет и слоты
+    выглядели живыми. Слоты 9:00/13:00/17:00: зазор 4ч > самой долгой услуги
+    (210 мин), пересечений с exclusion-констрейнтом нет по построению.
+    Идемпотентность — по idempotency_key."""
+    async with SessionLocal() as s:
+        clients = (
+            (await s.execute(select(User.id).where(User.role == Role.client).limit(50)))
+            .scalars()
+            .all()
+        )
+        if not clients or not services or not masters:
+            return 0
+        today = datetime.now(UTC).date()
+        rows: list[Booking] = []
+        i = 0
+        day_offset = 1
+        while len(rows) < n and day_offset < 14:
+            day = today + timedelta(days=day_offset)
+            day_offset += 1
+            if day.weekday() == 6:
+                continue
+            for hour in (9, 13, 17):
+                if len(rows) >= n:
+                    break
+                svc = services[i % len(services)]
+                master = masters[i % len(masters)]
+                i += 1
+                start = datetime(day.year, day.month, day.day, hour, tzinfo=UTC)
+                rows.append(
+                    Booking(
+                        filial_id=svc.filial_id,
+                        master_id=master.id,
+                        client_id=clients[i % len(clients)],
+                        service_id=svc.id,
+                        start_at=start,
+                        end_at=start + timedelta(minutes=svc.duration_min),
+                        status="pending",
+                        idempotency_key=f"seed-up-{day.isoformat()}-{hour}",
+                    )
+                )
+        s.add_all(rows)
+        try:
+            await s.commit()
+        except Exception:  # noqa: BLE001 — повторный сид: ключи уже есть, это ок
+            await s.rollback()
+            return 0
+        return len(rows)
+
+
 async def ensure_promos() -> None:
     """Демо-промокоды. Идемпотентно по code."""
     promos = [
@@ -312,8 +492,9 @@ async def main(clients: int = 200, visits: int = 300) -> None:
     await ensure_promos()
     await ensure_family_sub()
     total_visits = await ensure_visits(services, masters, visits)
+    upcoming = await ensure_upcoming(services, masters)
     print(
-        f"filials={len(filials)} services={len(services)} masters={len(masters)} clients={total_clients} visits={total_visits}"
+        f"filials={len(filials)} services={len(services)} masters={len(masters)} clients={total_clients} visits={total_visits} upcoming={upcoming}"
     )
 
 
