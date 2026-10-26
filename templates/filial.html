@@ -4,7 +4,7 @@
 <h1>{{ filial.name }}</h1><p>{{ filial.address }}</p>
 <h2>Услуги</h2>
 <table><tr><th>Услуга</th><th>Мин</th><th>Цена</th></tr>
-{% for s in services %}<tr><td>{{ s.name }}</td><td>{{ s.duration_min }}</td><td>{{ "%.2f"|format(s.price_kopeks/100) }} ₽</td></tr>{% endfor %}
+{% for s in services %}<tr><td>{{ s.name }}</td><td>{{ s.duration_min }}</td><td>{{ s.price_kopeks // 100 }} ₽</td></tr>{% endfor %}
 </table>
 <h2>Мастера</h2>
 <ul class="cards">
@@ -14,7 +14,7 @@
 <input type="hidden" name="filial_id" value="{{ filial.id }}">
 <input type="hidden" name="master_id" value="{{ u.id }}">
 <label>Услуга <select name="service_id">{% for s in services %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></label>
-<label>День <input type="date" name="day" value="2026-10-05"></label>
+<label>День <input type="date" name="day" value="{{ today }}"></label>
 <button>Слоты</button>
 </form></li>
 {% endfor %}

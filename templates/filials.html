@@ -2,7 +2,7 @@
 {% block title %}Филиалы — сеть парикмахерских PFP{% endblock %}
 {% block content %}
 <h1 class="font-display">Филиалы</h1>
-<p style="color:var(--muted);max-width:60ch">{{ filials|length }} филиала(ов). Выберите свой и запишитесь онлайн за 3 шага.</p>
+<p style="color:var(--muted);max-width:60ch">{{ filials|length }} {{ filial_word }}. Выберите свой и запишитесь онлайн за 3 шага.</p>
 
 {% for f in filials %}
 <section class="card" style="margin:1.2rem 0">

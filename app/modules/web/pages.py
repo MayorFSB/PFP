@@ -1,7 +1,7 @@
 """Публичные SSR-страницы: главная, каталог филиалов, документы, слоты."""
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -86,6 +86,15 @@ async def filials_index(
     request: Request, session: AsyncSession = Depends(get_session)
 ) -> HTMLResponse:
     rows = (await session.execute(select(Filial).order_by(Filial.name))).scalars().all()
+    n = len(rows)
+    d10, d100 = n % 10, n % 100
+    filial_word = (
+        "филиал"
+        if d10 == 1 and d100 != 11
+        else "филиала"
+        if 2 <= d10 <= 4 and not 12 <= d100 <= 14
+        else "филиалов"
+    )
     services = (
         (await session.execute(select(Service).order_by(Service.price_kopeks))).scalars().all()
     )
@@ -93,7 +102,9 @@ async def filials_index(
     for s in services:
         by_filial.setdefault(s.filial_id, []).append(s)
     return tpl.TemplateResponse(
-        request, "filials.html", _ctx(request, filials=rows, by_filial=by_filial)
+        request,
+        "filials.html",
+        _ctx(request, filials=rows, by_filial=by_filial, filial_word=filial_word),
     )
 
 
@@ -153,7 +164,14 @@ async def filial(
     return tpl.TemplateResponse(
         request,
         "filial.html",
-        _ctx(request, filial=f, services=services, masters=masters, user=user),
+        _ctx(
+            request,
+            filial=f,
+            services=services,
+            masters=masters,
+            user=user,
+            today=datetime.now(UTC).date().isoformat(),
+        ),
     )
 
 
