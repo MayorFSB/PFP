@@ -211,6 +211,27 @@
       ],
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }, "tooltip": { "mode": "multi" } },
       "fieldConfig": { "defaults": { "custom": { "fillOpacity": 15, "lineWidth": 2 } }, "overrides": [] }
+    },
+    {
+      "id": 9,
+      "type": "logs",
+      "title": "Логи приложения (structlog JSON → Loki)",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 20 },
+      "datasource": { "type": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"pfp\"} | json | level != `debug`",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
     }
   ]
 }

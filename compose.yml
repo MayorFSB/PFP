@@ -43,6 +43,7 @@ services:
     volumes:
       - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/ds.yml
       - ./observability/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dash.yml
+      - ./observability/grafana-alerting:/etc/grafana/provisioning/alerting
       - ./observability/grafana-dashboard.json:/etc/grafana/dashboards/business.json
     ports:
       - "3000:3000"
@@ -58,6 +59,7 @@ services:
     image: grafana/promtail:3.3.0
     volumes:
       - ./observability/promtail.yml:/etc/promtail/config.yml
+      - ./observability/logs:/var/log/pfp
       - /var/run/docker.sock:/var/run/docker.sock
 
 
